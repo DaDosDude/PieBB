@@ -1,6 +1,6 @@
 # PieBB
 
-A classic bulletin-board frontend for [PieFed](https://join.piefed.social), styled like phpBB2's subSilver.
+A classic bulletin-board frontend for [PieFed](https://codeberg.org/rimu/pyfedi), styled like phpBB2's subSilver.
 It talks to PieFed's API only, so it runs alongside your instance without touching its database.
 Tested with PieFed 1.8.x.
 
