@@ -1,5 +1,6 @@
 /* subSilver-style theme for PieBB (original CSS, no phpBB assets) */
-body { background: #E5E5E5; color: #000; margin: 0; padding: 8px;
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-wrap: break-word; background: #E5E5E5; color: #000; margin: 0; padding: 8px;
   font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 11px;
   scrollbar-face-color: #DEE3E7; }
 a { color: #006699; text-decoration: none; }
@@ -41,7 +42,7 @@ td.spaceRow { background: #D1D7DC; height: 1px; padding: 0; }
 .postbody blockquote { margin: 6px 0 6px 12px; padding: 6px; background: #FAFAFA; border: 1px solid #C2CFDF; font-size: 11px; }
 .postbody pre, .postbody code { font: 11px Courier, "Courier New", monospace; color: #060; background: #FAFAFA; }
 .postbody pre { border: 1px solid #D1D7DC; padding: 6px; overflow-x: auto; }
-.postbody table { border-collapse: collapse; } .postbody td, .postbody th { border: 1px solid #98AAB1; padding: 2px 4px; color: #000; background: none; height: auto; }
+.postbody table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; } .postbody td, .postbody th { border: 1px solid #98AAB1; padding: 2px 4px; color: #000; background: none; height: auto; }
 hr { border: 0; border-top: 1px solid #D1D7DC; }
 
 /* folder icons (pure CSS) */
@@ -66,6 +67,7 @@ input[type=text], input[type=password], input[type=url], input[type=search], tex
   font: 11px Verdana, Arial, sans-serif; color: #000; background: #FAFAFA; border: 1px solid #98AAB1; padding: 2px; }
 textarea { font-size: 12px; width: 100%; box-sizing: border-box; }
 input[type=text], input[type=url] { width: 100%; box-sizing: border-box; }
+input, select, textarea { max-width: 100%; }
 form.inline { display: inline; }
 
 /* thread postbit */
@@ -144,6 +146,15 @@ td.nested { padding-left: 46px; }
 }
 @media (max-width: 700px) {
   body { padding: 0; } .wrap { padding: 4px; border: 0; }
+  /* nothing may push the page wider than the phone (long words, dates, bigger text settings) */
+  .nowrap, .lastpost, th { white-space: normal; }
+  /* don't let the Forum column grab all spare width: Last Post keeps one line per item when it fits */
+  table.forumline td[width="100%"] { width: auto; }
+  td.lastpost { min-width: 9.5em; }
+  .postbody pre { white-space: pre-wrap; }
+  table.formtable td { display: block; width: auto !important; }
+  table.formtable th { display: block; }
+  input[type=file] { width: 100%; font-size: 11px; }
   .hide-sm { display: none; }
   .postbit { width: auto; min-width: 0; max-width: none; display: block; }
   tr.post > td { display: block; width: auto; }
@@ -174,3 +185,6 @@ button.notiflink { text-align: left; font-size: inherit; white-space: normal; }
 .postbody details > summary { cursor: pointer; font-weight: bold; }
 .quoteimgs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .quoteimgs img { max-height: 120px; max-width: 160px; border: 1px solid #98AAB1; }
+/* long words / URLs in titles and links break instead of widening the page */
+.maintitle, .topictitle, .forumlink, .cattitle, .linkbox, .quote, .lastpost a, .genmed, .nav { overflow-wrap: anywhere; }
+@media (max-width: 340px) { td.lastpost { min-width: 6.5em; } }

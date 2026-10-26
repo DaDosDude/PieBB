@@ -5,7 +5,7 @@
 {% block content %}
 <table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Report</td></tr></table>
 <form method="post">{{ m.csrf() }}
-<table class="forumline" style="max-width:640px;margin:20px auto">
+<table class="forumline formtable" style="max-width:640px;margin:20px auto">
   <tr><th colspan="2">Report {{ 'topic' if kind == 'post' else 'post' }} to the moderators</th></tr>
   <tr><td class="row1 gen" colspan="2">
     {% if kind == 'post' %}<b>{{ view.post.title }}</b> by {{ view.creator|pname }}

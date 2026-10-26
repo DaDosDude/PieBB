@@ -1,7 +1,7 @@
 {% extends "admin/base.html" %}
 {% block admin %}
 <form method="post">{{ m.csrf() }}
-<table class="forumline">
+<table class="forumline formtable">
   <tr><th colspan="2">Forum settings</th></tr>
   <tr><td class="row1 gen" width="35%"><b>Forum title</b><br><span class="gensmall">Empty = use the PieFed site name</span></td>
       <td class="row2"><input type="text" name="forum_title" value="{{ settings.forum_title }}"></td></tr>

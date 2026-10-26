@@ -59,7 +59,12 @@ def _handle(r):
         data = None
     if r.status_code >= 400:
         err = data if isinstance(data, dict) else {}
-        msg = schema.s(err.get("message")) or schema.s(err.get("error")) or f"HTTP {r.status_code}"
+        msg = schema.s(err.get("message")) or schema.s(err.get("error")) or ""
+        status = schema.s(err.get("status")) or ""
+        if status.lower() == "not found":  # PieFed: {"message": "()", "status": "Not found"}
+            raise ApiError(404, "That doesn't exist (anymore): it may have been deleted.")
+        if not msg.strip("() "):
+            msg = status or f"HTTP {r.status_code}"
         auth_failed = r.status_code == 401 or msg.startswith(("incorrect_login", "incorrect login"))
         if auth_failed and session.get("jwt"):
             session.clear()
