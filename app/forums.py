@@ -61,19 +61,33 @@ def build_index(include_hidden=False):
     feed_cats = _categories(piefed.feed_tree(), "feed", True, "group:feeds", "Feeds", feed_offset)
     cats = topic_cats + feed_cats
     for cat in cats:
-        cat["rows"].sort(key=lambda r: r["order"])
-        if not include_hidden:
-            cat["rows"] = [r for r in cat["rows"] if not r["hidden"]]
-        for r in cat["rows"]:
-            sub = r.setdefault("rows", [])
-            sub.sort(key=lambda x: x["order"])
-            if not include_hidden:
-                r["rows"] = [x for x in sub if not x["hidden"]]
+        _arrange(cat, include_hidden)
     cats.sort(key=lambda c: c["order"])
     if not include_hidden:
         cats = [c for c in cats if not c["hidden"] and c["rows"]]
         _attach_stats(cats)
     return cats
+
+
+def _arrange(group, include_hidden):
+    """Admin order for a group's rows and their nested rows; hidden ones dropped unless asked for."""
+    group["rows"].sort(key=lambda r: r["order"])
+    if not include_hidden:
+        group["rows"] = [r for r in group["rows"] if not r["hidden"]]
+    for r in group["rows"]:
+        sub = r.setdefault("rows", [])
+        sub.sort(key=lambda x: x["order"])
+        if not include_hidden:
+            r["rows"] = [x for x in sub if not x["hidden"]]
+
+
+def subforum_rows(node, kind):
+    """The Subforums table of a topic/feed page: the same rows (counts, last post, activity order,
+    "more" links under subtopics) as that topic's category on the index, with all its own communities."""
+    group = {"rows": _node_rows(node, kind, False), "url": None}
+    _arrange(group, False)
+    _attach_stats([group])
+    return group["rows"]
 
 
 def _last_time(r):

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m with context %}
+{% import "_forum_rows.html" as fr with context %}
 {% block title %}{{ topic.name if kind != 'community' else cv.community.title }} :: {% endblock %}
 {% macro about_forum() %}
 <table class="forumline sidebar">
@@ -39,18 +40,7 @@
 
 {% endblock %}
 {% block content %}
-{% if kind != 'community' and (topic.children or topic.communities) %}
-<table class="forumline" style="margin-bottom:8px">
-  <tr><th colspan="5">&nbsp;Subforums&nbsp;</th></tr>
-  {% for ch in topic.children %}{{ m.topic_row(ch, kind=kind) }}{% endfor %}
-  {% for c in topic.communities %}
-  <tr><td class="row1 center" width="46"><span class="forumicon"{% if c.icon %} style="background-image:url('{{ c.icon|cssurl }}')"{% endif %}></span></td>
-    <td class="row1" colspan="4"><a class="forumlink" href="{{ url_for('bb.community', name=c|cref) }}">{{ c.title or c.name }}</a>
-      {% if c.last %}<br><span class="gensmall">Last post: {{ c.last.time|bbdate }} in
-        <a href="{{ url_for('bb.thread', post_id=c.last.id, page='last') }}">{{ c.last.title|truncate(60, True) }}</a></span>{% endif %}</td></tr>
-  {% endfor %}
-</table>
-{% endif %}
+{% if subforums %}{{ fr.forum_table('Subforums', [{'rows': subforums}]) }}{% endif %}
 
 <table class="forumline">
   {{ m.post_table_head() }}

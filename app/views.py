@@ -213,8 +213,9 @@ def _node_listing(kind, node, parent, **query):
     if page > 1 and not data.get("posts"):  # past the end: show the last page instead
         return redirect(url_for(f"bb.{kind}", page=min(page - 1, pages or 1), **query))
     sticky, posts = split_sticky(data.get("posts") or [], page)
-    return render_template("forum.html", kind=kind, topic=_active_first(_named(node, kind)),
-                           parent=_named(parent, kind), sticky=sticky, posts=posts, page=page, pages=pages,
+    return render_template("forum.html", kind=kind, topic=_named(node, kind), parent=_named(parent, kind),
+                           subforums=forums.subforum_rows(node, kind),
+                           sticky=sticky, posts=posts, page=page, pages=pages,
                            has_next=len(data.get("posts") or []) >= PER_PAGE)
 
 
@@ -239,28 +240,11 @@ def listing_pages(node):
     return page_count(sum(int((counts[cid] or {}).get("post_count") or 0) for cid in ids), PER_PAGE)
 
 
-def _active_first(node):
-    """A topic/feed page's own communities, most recently active first, with their last topic."""
-    if not node or not node["communities"]:
-        return node
-    _, last = piefed.community_stats([c["id"] for c in node["communities"]])
-    comms = [dict(c, last=last.get(c["id"]) or None) for c in node["communities"]]
-    comms.sort(key=lambda c: (c["last"] or {}).get("time") or "", reverse=True)
-    return dict(node, communities=comms)
-
-
 def _named(node, kind):
-    """Copy of a topic/feed node with admin renames applied to it and its children."""
+    """Copy of a topic/feed node with the admin's display name, if any."""
     if not node:
         return None
-    out = dict(node)
-    out["name"] = settings.layout_for(f"{kind}:{node['id']}").get("name") or node["name"]
-    out["children"] = [dict(ch, name=settings.layout_for(f"{kind}:{ch['id']}").get("name") or ch["name"])
-                       for ch in node["children"]
-                       if not settings.layout_for(f"{kind}:{ch['id']}").get("hidden")]
-    out["communities"] = [_renamed_community(c) for c in node["communities"]
-                          if not settings.layout_for(f"community:{c.get('id')}").get("hidden")]
-    return out
+    return dict(node, name=settings.layout_for(f"{kind}:{node['id']}").get("name") or node["name"])
 
 
 def _renamed_community(c):

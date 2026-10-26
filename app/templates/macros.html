@@ -88,19 +88,6 @@
 </tr>
 {% endmacro %}
 
-{% macro topic_row(t, cls='row1', kind='topic') %}
-{% set ep = 'bb.feed' if kind == 'feed' else 'bb.topic' %}
-<tr>
-  <td class="{{ cls }} center" width="46">{% if theme.img('forum') %}<img src="{{ theme.img('forum') }}" alt="">{% else %}<span class="folder"></span>{% endif %}</td>
-  <td class="{{ cls }}" width="100%" colspan="4">
-    <a class="forumlink" href="{{ url_for(ep, **{kind ~ '_id': t.id}) }}">{{ t.name }}</a>
-    {% if t.description %}<br><span class="genmed">{{ t.description|plain|truncate(160, True) }}</span>{% endif %}
-    {% if t.children %}<br><span class="gensmall"><b>Subforums:</b>
-      {% for ch in t.children %}<a href="{{ url_for(ep, **{kind ~ '_id': ch.id}) }}">{{ ch.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
-  </td>
-</tr>
-{% endmacro %}
-
 {% macro post_rows(posts, show_community=False) %}
 {% for pv in posts %}
 {% set p = pv.post %}
