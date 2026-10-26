@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Admin Panel :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Admin Panel</td></tr></table>
+<table class="forumline" style="margin-bottom:8px">
+  <tr><td class="catHead adminnav">
+    {% for key, label, ep in [('dashboard','Overview','admin.dashboard'), ('settings','Settings','admin.general'),
+                               ('themes','Themes','admin.theme_admin'), ('layout','Categories & Feeds','admin.layout'),
+                               ('moderation','Reports & Mod log','admin.moderation')] %}
+      <a class="{{ 'on' if section == key }}" href="{{ url_for(ep) }}">{{ label }}</a>
+    {% endfor %}
+  </td></tr>
+</table>
+{% block admin %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %}{{ forum_title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='subsilver.css') }}">
+{% for href in theme.css %}<link rel="stylesheet" href="{{ href }}">
+{% endfor %}
+{% if site.icon %}<link rel="icon" href="{{ site.icon|url }}">{% endif %}
+<script src="{{ url_for('static', filename='localtime.js') }}" defer></script>
+<script src="{{ url_for('static', filename='qol.js') }}" defer></script>
+</head>
+<body>
+<a name="top" id="top"></a>
+<div class="wrap bodyline">
+  <div class="header">
+    {% if site.icon %}<a href="{{ url_for('bb.index') }}" class="logo" style="background-image:url('{{ site.icon|cssurl }}')"></a>{% endif %}
+    <div style="flex:1">
+      <a href="{{ url_for('bb.index') }}" class="maintitle">{{ forum_title }}</a><br>
+      <span class="gen">{{ (site.description or 'A PieFed community') }}</span>
+      <div class="mainmenu">
+        <a href="{{ url_for('bb.search') }}">Search</a>
+        <a href="{{ url_for('bb.index', view='topics') }}">Categories</a>
+        <a href="{{ url_for('bb.index', view='flat') }}">Forum list</a>
+        {% if me %}
+          {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}"><b>Admin Panel</b></a>{% endif %}
+          {% if is_mod %}<a href="{{ url_for('bb.modcp') }}">Moderator CP</a>{% endif %}
+          <a href="{{ url_for('bb.unread') }}">Unread posts</a>
+          <a href="{{ url_for('bb.notifications') }}">{% if unread_notes %}<b>Notifications ({{ unread_notes }})</b>{% else %}Notifications{% endif %}</a>
+          <a href="{{ url_for('bb.messages') }}">{% if unread_pms %}<b>Messages ({{ unread_pms }})</b>{% else %}Messages{% endif %}</a>
+          <a href="{{ url_for('bb.profile', username=me.user_name) }}">Profile</a>
+          <form method="post" action="{{ url_for('bb.logout') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btnlink" type="submit">Log out [ {{ me.user_name }} ]</button></form>
+        {% else %}
+          <a href="{{ piefed_url }}/auth/register">Register</a>
+          <a href="{{ url_for('bb.login', next=request.full_path) }}">Log in</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% with msgs = get_flashed_messages() %}{% for m in msgs %}<div class="flash">{{ m }}</div>{% endfor %}{% endwith %}
+
+  {% set sidebar_html %}{% block sidebar %}{% include "sidebar.html" %}{% endblock %}{% endset %}
+  {% if sidebar_html|trim %}
+  <details class="sidebar-top"><summary>About {{ site.name or forum_title }}</summary>{{ sidebar_html }}</details>
+  {# page title / navigation row spans the full width, so the sidebar lines up with the first table #}
+  {% block pagehead %}{% endblock %}
+  <div class="layout">
+    <div class="main">{% block content %}{% endblock %}</div>
+    <aside class="sidebar-side">{{ sidebar_html }}</aside>
+  </div>
+  {% else %}
+  {{ self.pagehead() }}
+  {{ self.content() }}
+  {% endif %}
+
+  <div class="copyright">
+    Powered by <a href="{{ piefed_url }}">{{ site.name or 'PieFed' }}</a> &middot; PieBB frontend
+    &middot; All times are <span id="bbtz">{{ config.TIMEZONE }}</span>
+  </div>
+</div>
+</body>
+</html>

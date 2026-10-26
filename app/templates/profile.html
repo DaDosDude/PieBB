@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% set u = pv.person %}
+{% block title %}Viewing profile :: {{ u|pname }} :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a></td></tr></table>
+<table class="forumline">
+  <tr><th colspan="2">Viewing profile :: {{ u|pref }}</th></tr>
+  <tr>
+    <td class="row1 center" width="30%" valign="top">
+      {% if u.avatar %}<img class="avatar" src="{{ u.avatar|img }}" alt=""><br>{% endif %}
+      <span class="name">{{ u|pname }}</span><br>
+      <span class="rank">{% if pv.is_admin %}Site Admin{% elif u.bot %}Bot{% else %}Member{% endif %}</span>
+    </td>
+    <td class="row1" valign="top">
+      <table cellpadding="3" class="gen">
+        <tr><td class="right"><b>Joined:</b></td><td>{{ u.published|bbdate }}</td></tr>
+        <tr><td class="right"><b>Topics:</b></td><td>{{ pv.counts.post_count }}</td></tr>
+        <tr><td class="right"><b>Posts:</b></td><td>{{ pv.counts.comment_count }}</td></tr>
+        {% if me and u.id and u.id != me.id %}<tr><td class="right"><b>Contact:</b></td><td><a href="{{ url_for('bb.conversation', person_id=u.id) }}">Send private message</a></td></tr>{% endif %}
+        <tr><td class="right"><b>Home:</b></td><td><a href="{{ u.actor_id|url }}" rel="nofollow noopener">{{ u.actor_id|domain }}</a></td></tr>
+        {% if moderates %}<tr><td class="right" valign="top"><b>Moderates:</b></td><td>
+          {% for mv in moderates %}<a href="{{ url_for('bb.community', name=mv.community|cref) }}">{{ mv.community.title }}</a>{{ ', ' if not loop.last }}{% endfor %}</td></tr>{% endif %}
+      </table>
+      {% if u.about %}<div class="postbody">{{ u.about|md }}</div>{% endif %}
+    </td>
+  </tr>
+</table>
+
+{% if posts %}
+<br><table class="forumline">
+  {{ m.post_table_head('Recent topics') }}
+  {{ m.post_rows(posts, True) }}
+</table>
+{% endif %}
+
+{% if comments %}
+<br><table class="forumline">
+  <tr><th colspan="2">Recent posts</th></tr>
+  {% for c in comments %}
+  <tr><td class="row2 gensmall" width="25%" valign="top"><a href="{{ url_for('bb.comment_link', comment_id=c.comment.id) }}">Re: {{ c.post.title|truncate(50, True) }}</a><br>
+      {{ c.comment.published|bbdate }}</td>
+      <td class="row1 postbody">{{ c.comment.body|truncate(400, True)|md }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

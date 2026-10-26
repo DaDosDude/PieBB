@@ -1,0 +1,16 @@
+services:
+  piebb:
+    build: .
+    image: piebb
+    container_name: piebb
+    restart: unless-stopped
+    env_file: .env
+    network_mode: host   # reaches PieFed on 127.0.0.1:8030 directly
+    environment:
+      - GUNICORN_CMD_ARGS=-b 127.0.0.1:8060
+    mem_limit: 512m
+    volumes:
+      - piebb-data:/data
+
+volumes:
+  piebb-data:

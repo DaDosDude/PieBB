@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Report :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Report</td></tr></table>
+<form method="post">{{ m.csrf() }}
+<table class="forumline" style="max-width:640px;margin:20px auto">
+  <tr><th colspan="2">Report {{ 'topic' if kind == 'post' else 'post' }} to the moderators</th></tr>
+  <tr><td class="row1 gen" colspan="2">
+    {% if kind == 'post' %}<b>{{ view.post.title }}</b> by {{ view.creator|pname }}
+    {% else %}<div class="quote">{{ view.comment.body|plain|truncate(400, True) }}</div><span class="gensmall">by {{ view.creator|pname }}</span>{% endif %}
+  </td></tr>
+  <tr><td class="row1 gen" width="30%"><b>Reason</b></td>
+      <td class="row2"><select name="reason" required><option value="">Choose a reason…</option>
+        {% for r in reasons %}<option>{{ r }}</option>{% endfor %}</select></td></tr>
+  <tr><td class="row1 gen" valign="top"><b>Details</b><br><span class="gensmall">optional</span></td>
+      <td class="row2"><textarea name="description" rows="4" maxlength="500"></textarea></td></tr>
+  <tr><td class="catBottom center" colspan="2"><input type="submit" value="Send report"></td></tr>
+</table>
+</form>
+{% endblock %}

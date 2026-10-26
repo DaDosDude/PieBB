@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Log in :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a></td></tr></table>
+<form method="post" action="{{ url_for('bb.login') }}">{{ m.csrf() }}
+<input type="hidden" name="next" value="{{ next }}">
+<table class="forumline" style="max-width:520px;margin:20px auto">
+  <tr><th>Please enter your username and password to log in</th></tr>
+  <tr><td class="row1">
+    <table width="100%" cellpadding="4">
+      <tr><td class="right gen" width="40%">Username:</td><td><input type="text" name="username" autocomplete="username" required autofocus></td></tr>
+      <tr><td class="right gen">Password:</td><td><input type="password" name="password" autocomplete="current-password" required style="width:100%;box-sizing:border-box"></td></tr>
+      <tr><td class="right gen">Remember me:</td><td><input type="checkbox" name="autologin" value="1"></td></tr>
+      <tr><td colspan="2" class="center"><input type="submit" value="Log in"></td></tr>
+      <tr><td colspan="2" class="center gensmall">
+        Uses your {{ site.name or 'PieFed' }} account.
+        <a href="{{ piefed_url }}/auth/reset_password">I forgot my password</a> &middot;
+        <a href="{{ piefed_url }}/auth/register">Register</a></td></tr>
+    </table>
+  </td></tr>
+</table>
+</form>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Ban user :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<form method="post">{{ m.csrf() }}
+<input type="hidden" name="community_id" value="{{ cv.community.id }}">
+<input type="hidden" name="user_id" value="{{ person.id }}">
+<input type="hidden" name="next" value="{{ next }}">
+<table class="forumline" style="max-width:600px;margin:20px auto">
+  <tr><th colspan="2">Ban {{ person|pref }} from {{ cv.community.title }}</th></tr>
+  <tr><td class="row1 gen" width="30%"><b>Reason</b></td><td class="row2"><input type="text" name="reason" maxlength="250" required placeholder="Required by PieFed"></td></tr>
+  <tr><td class="row1 gen"><b>Length</b></td><td class="row2 gen">
+    <select name="days">
+      <option value="1">1 day</option><option value="7">1 week</option><option value="30">1 month</option>
+      <option value="365">1 year</option><option value="0">Permanent</option>
+    </select></td></tr>
+  <tr><td class="catBottom center" colspan="2"><input type="submit" value="Ban user"> &nbsp; <input type="submit" name="unban" value="Unban instead" formnovalidate></td></tr>
+</table>
+</form>
+{% endblock %}

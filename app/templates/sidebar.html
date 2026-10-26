@@ -1,0 +1,12 @@
+<table class="forumline sidebar">
+  <tr><th>{{ site.name or forum_title }}</th></tr>
+  {% if site.sidebar or site.description %}
+  <tr><td class="row1 postbody">{{ (site.sidebar or site.description)|md }}</td></tr>
+  {% endif %}
+  <tr><td class="row2 gensmall">
+    {% if site.user_count %}<b>{{ site.user_count }}</b> registered users<br>{% endif %}
+    {% if site_admins %}<b>Administrators:</b>
+      {% for a in site_admins %}<a href="{{ url_for('bb.profile', username=a.person|pref) }}">{{ a.person|pname }}</a>{{ ', ' if not loop.last }}{% endfor %}<br>{% endif %}
+    <a href="{{ piefed_url }}">Visit {{ piefed_url|domain }}</a>
+  </td></tr>
+</table>

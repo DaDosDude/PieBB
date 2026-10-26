@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Messages with {{ other|pname }} :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.messages') }}">Private Messages</a> &raquo; {{ other|pname }}</td></tr></table>
+<table class="forumline">
+  <tr><th width="150">Author</th><th>Message</th></tr>
+  {% for msg in pms %}
+  <tr>
+    <td class="{{ loop.cycle('row1', 'row2') }} postbit" valign="top"><span class="name">{{ msg.creator|pname }}</span><br>
+      <span class="postdetails">{{ msg.published|bbdate }}</span></td>
+    <td class="{{ loop.cycle('row1', 'row2') }} postbody" valign="top">{% if msg.deleted %}<i class="muted">[deleted]</i>{% else %}{{ msg.content|md }}{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">No messages with {{ other|pname }} yet.</td></tr>
+  {% endfor %}
+  <tr><td class="catBottom" colspan="2"><a name="bottom"></a></td></tr>
+</table>
+<br>
+<form method="post">{{ m.csrf() }}
+<table class="forumline">
+  <tr><th>Send a private message to {{ other|pref }}</th></tr>
+  <tr><td class="row1">{{ m.md_toolbar() }}<textarea name="content" rows="6" maxlength="10000" required>{{ draft }}</textarea></td></tr>
+  <tr><td class="catBottom center"><input type="submit" value="Send"></td></tr>
+</table>
+</form>
+{% endblock %}

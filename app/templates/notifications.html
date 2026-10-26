@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Notifications :: {% endblock %}
+{% block content %}
+<table width="100%"><tr>
+  <td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Notifications</td>
+  <td class="right gensmall tabs">
+    <a class="{{ 'on' if show == 'Unread' }}" href="{{ url_for('bb.notifications') }}">Unread ({{ data.unread }})</a>
+    <a class="{{ 'on' if show == 'All' }}" href="{{ url_for('bb.notifications', show='all') }}">All</a>
+  </td>
+</tr></table>
+<table class="forumline">
+  <tr><th>From</th><th width="100%">Notification</th><th></th></tr>
+  {% for n in data['items'] %}
+  {% set go = url_for('bb.comment_link', comment_id=n.comment_id) if n.comment_id else (url_for('bb.thread', post_id=n.post_id) if n.post_id else '') %}
+  <tr>
+    <td class="row1 gensmall nowrap" valign="top">{% if n.author.id %}<a href="{{ url_for('bb.profile', username=n.author|pref) }}">{{ n.author|pname }}</a>{% endif %}</td>
+    <td class="row1 gen">
+      {% if go and n.unread %}
+      <form class="inline" method="post" action="{{ url_for('bb.notification_read') }}">{{ m.csrf() }}
+        <input type="hidden" name="id" value="{{ n.id }}"><input type="hidden" name="go" value="{{ go }}">
+        <button class="btnlink notiflink"><b>{{ n.body }}</b></button></form>
+      {% elif go %}<a href="{{ go }}">{{ n.body }}</a>
+      {% elif n.unread %}<b>{{ n.body }}</b>
+      {% else %}{{ n.body }}{% endif %}
+      {% if n.post_title %}<br><span class="gensmall">in {{ n.post_title }}</span>{% endif %}
+    </td>
+    <td class="row2 center nowrap gensmall">
+      {% if n.unread %}
+      <form class="inline" method="post" action="{{ url_for('bb.notification_read') }}">{{ m.csrf() }}
+        <input type="hidden" name="id" value="{{ n.id }}"><button class="btnlink">Mark read</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">{{ 'No unread notifications.' if show == 'Unread' else 'No notifications.' }}</td></tr>
+  {% endfor %}
+  {% if data.unread %}
+  <tr><td class="catBottom center" colspan="3">
+    <form class="inline" method="post" action="{{ url_for('bb.notification_read') }}">{{ m.csrf() }}
+      <input type="hidden" name="all" value="1"><input type="submit" value="Mark all as read"></form></td></tr>
+  {% endif %}
+</table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endblock %}

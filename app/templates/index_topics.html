@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% macro forum_icon(r) %}
+  {% if r.kind == 'community' %}
+    {% if r.icon %}<span class="forumicon" style="background-image:url('{{ r.icon|cssurl }}')"></span>
+    {% elif theme.img('forum') %}<img src="{{ theme.img('forum') }}" alt="">
+    {% else %}<span class="forumicon"></span>{% endif %}
+  {% else %}
+    {% if theme.img('forum') %}<img src="{{ theme.img('forum') }}" alt="">{% else %}<span class="folder"></span>{% endif %}
+  {% endif %}
+{% endmacro %}
+{% macro forum_text(r) %}
+  <a class="forumlink" href="{{ r.url }}">{{ r.name }}</a>
+  {% if r.kind == 'feed' %}<span class="gensmall muted">(feed)</span>{% endif %}
+  {% if r.description %}<br><span class="genmed">{{ r.description|plain|truncate(160, True) }}</span>{% endif %}
+  {% if r.subforums %}<br><span class="gensmall"><b>Subforums:</b>
+    {% for name, url in r.subforums %}<a href="{{ url }}">{{ name }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
+{% endmacro %}
+{% macro stats(r) %}
+  {% if r.counts %}
+    <td class="row2 center gensmall">{{ r.counts.post_count }}</td>
+    <td class="row2 center gensmall hide-sm">{{ r.counts.post_reply_count }}</td>
+    <td class="row2 center gensmall hide-sm">{{ r.counts.subscriptions_count }}</td>
+  {% else %}
+    <td class="row2 center gensmall muted">{{ '–' if r.kind == 'community' else '' }}</td>
+    <td class="row2 center gensmall hide-sm"></td><td class="row2 center gensmall hide-sm"></td>
+  {% endif %}
+{% endmacro %}
+{% macro last_post(r) %}
+  <td class="row2 center gensmall nowrap lastpost">{% if r.last %}{{ r.last.time|bbdate }}<br>
+    <a href="{{ url_for('bb.thread', post_id=r.last.id) }}" title="{{ r.last.title }}">{{ r.last.title|truncate(28, True) }}</a>
+    <a href="{{ url_for('bb.thread', post_id=r.last.id, page='last') }}" title="View latest post">&raquo;</a>
+  {% elif r.kind == 'community' and r.counts %}<span class="muted">No posts</span>{% endif %}</td>
+{% endmacro %}
+{% macro more_line(r, nested) %}
+  <tr><td class="row1 morerow{{ ' nested' if nested }}" colspan="6">
+    <a class="gensmall" href="{{ r.url }}">&raquo; {{ r.more }} more forum{{ 's' if r.more != 1 }} in {{ r.name }}&hellip;</a></td></tr>
+{% endmacro %}
+{% macro forum_line(r, nested) %}
+  {% if nested %}
+    {# community inside a subtopic: whole row (icon + text) indented one tab #}
+    <tr><td class="row1 nested" colspan="2">
+      <div class="nestedrow"><div class="nestedicon">{{ forum_icon(r) }}</div><div>{{ forum_text(r) }}</div></div>
+    </td>{{ stats(r) }}{{ last_post(r) }}</tr>
+  {% else %}
+    <tr>
+      <td class="row1 center" width="46">{{ forum_icon(r) }}</td>
+      <td class="row1" width="100%">{{ forum_text(r) }}</td>
+      {{ stats(r) }}{{ last_post(r) }}
+    </tr>
+  {% endif %}
+{% endmacro %}
+{% block pagehead %}
+<table width="100%"><tr>
+  <td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a></td>
+  <td class="right gensmall">{% if me %}Logged in as <b>{{ me.user_name }}</b>{% endif %}</td>
+</tr></table>
+
+{% endblock %}
+{% block content %}
+<table class="forumline">
+  <tr><th colspan="2">&nbsp;Forum&nbsp;</th><th>&nbsp;Topics&nbsp;</th><th class="hide-sm">&nbsp;Posts&nbsp;</th><th class="hide-sm">&nbsp;Members&nbsp;</th><th>&nbsp;Last Post&nbsp;</th></tr>
+  {% for cat in cats %}
+  <tr><td class="catLeft" colspan="6">{% if cat.url %}<a class="cattitle" href="{{ cat.url }}">{{ cat.name }}</a>{% else %}<span class="cattitle">{{ cat.name }}</span>{% endif %}</td></tr>
+    {% for r in cat.rows %}
+      {{ forum_line(r, False) }}
+      {% for c in r.rows %}{{ forum_line(c, True) }}{% endfor %}
+      {% if r.more %}{{ more_line(r, True) }}{% endif %}
+    {% endfor %}
+    {% if cat.more %}{{ more_line(cat, False) }}{% endif %}
+  {% endfor %}
+</table>
+{% endblock %}

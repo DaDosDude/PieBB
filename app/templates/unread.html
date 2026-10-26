@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Unread posts :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Unread posts</td></tr></table>
+<p class="gensmall">Unread topics and topics with new replies in the communities you subscribe to (newest {{ scanned }} topics checked).</p>
+<form method="post" action="{{ url_for('bb.mark_read') }}">{{ m.csrf() }}
+<table class="forumline">
+  {{ m.post_table_head('Unread topics') }}
+  {{ m.post_rows(posts, True) }}
+  {% if not posts %}<tr><td class="row1 center gen" colspan="6">You're all caught up.</td></tr>{% endif %}
+  {% if posts %}
+  <tr><td class="catBottom center" colspan="6">
+    {% for pv in posts %}<input type="hidden" name="post_id" value="{{ pv.post.id }}">{% endfor %}
+    <input type="hidden" name="next" value="{{ url_for('bb.unread') }}">
+    <input type="submit" value="Mark all as read"></td></tr>
+  {% endif %}
+</table>
+</form>
+{% endblock %}

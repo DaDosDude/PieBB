@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block admin %}
+<form method="post">{{ m.csrf() }}
+<table class="forumline">
+  <tr><th>Show</th><th width="60%">Name (empty = PieFed's name)</th><th>Order</th><th class="hide-sm">Type</th></tr>
+  {% for cat in cats %}
+  <tr>
+    <td class="catLeft center"><input type="checkbox" name="show:{{ cat.key }}" value="1"{% if not cat.hidden %} checked{% endif %}></td>
+    <td class="catLeft"><input type="text" name="name:{{ cat.key }}" value="{{ cat.name if cat.name != cat.orig_name else '' }}" placeholder="{{ cat.orig_name }}" style="font-weight:bold"></td>
+    <td class="catLeft"><input type="text" name="order:{{ cat.key }}" value="{{ cat.order }}" size="5" style="width:60px"></td>
+    <td class="catLeft gensmall hide-sm">{{ 'Feed category' if cat.kind == 'feed' else 'Group' if cat.kind == 'group' else 'Topic category' }}</td>
+  </tr>
+    {% for r in cat.rows %}
+    {% if r.dup %}
+    <tr><td class="row1"></td><td class="row1 gensmall muted" style="padding-left:24px" colspan="3">{{ r.name }} (also listed above; edit it there)</td></tr>
+    {% else %}
+    <tr>
+      <td class="row1 center"><input type="checkbox" name="show:{{ r.key }}" value="1"{% if not r.hidden %} checked{% endif %}></td>
+      <td class="row1" style="padding-left:24px"><input type="text" name="name:{{ r.key }}" value="{{ r.name if r.name != r.orig_name else '' }}" placeholder="{{ r.orig_name }}"></td>
+      <td class="row1">{% if r.kind == 'community' %}<span class="gensmall muted" title="Communities sort themselves by their latest activity">auto</span>{% else %}<input type="text" name="order:{{ r.key }}" value="{{ r.order }}" size="5" style="width:60px">{% endif %}</td>
+      <td class="row2 gensmall hide-sm">{{ r.kind|capitalize }}</td>
+    </tr>
+    {% endif %}
+      {% for c in r.rows %}
+      {% if c.dup %}
+      <tr><td class="row1"></td><td class="row1 gensmall muted" style="padding-left:48px" colspan="3">{{ c.name }} (also listed above; edit it there)</td></tr>
+      {% else %}
+      <tr>
+        <td class="row1 center"><input type="checkbox" name="show:{{ c.key }}" value="1"{% if not c.hidden %} checked{% endif %}></td>
+        <td class="row1" style="padding-left:48px"><input type="text" name="name:{{ c.key }}" value="{{ c.name if c.name != c.orig_name else '' }}" placeholder="{{ c.orig_name }}"></td>
+        <td class="row1">{% if c.kind == 'community' %}<span class="gensmall muted" title="Communities sort themselves by their latest activity">auto</span>{% else %}<input type="text" name="order:{{ c.key }}" value="{{ c.order }}" size="5" style="width:60px">{% endif %}</td>
+        <td class="row2 gensmall hide-sm">Community in {{ r.name }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    {% endfor %}
+  {% else %}
+  <tr><td class="row1 gen center" colspan="4">PieFed returned no topics or feeds.</td></tr>
+  {% endfor %}
+  <tr><td class="catBottom center" colspan="4"><input type="submit" value="Save layout"></td></tr>
+</table>
+</form>
+<p class="gensmall">Lower order numbers come first. Communities sort themselves on the index: most recent activity first. Feed categories are hidden until you tick them.
+Renaming here only changes what this forum shows; PieFed is not changed.</p>
+<form method="post" action="{{ url_for('admin.layout_reset') }}" onsubmit="return confirm('Reset all names, order and visibility?')">{{ m.csrf() }}
+  <button class="btnlink">Reset layout to PieFed defaults</button></form>
+{% endblock %}

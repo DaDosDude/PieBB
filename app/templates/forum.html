@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ topic.name if kind != 'community' else cv.community.title }} :: {% endblock %}
+{% macro about_forum() %}
+<table class="forumline sidebar">
+  <tr><th>About this forum</th></tr>
+  <tr><td class="row1 postbody">{{ cv.community.description|md }}</td></tr>
+  <tr><td class="row2 gensmall">{{ cv.counts.subscriptions_count }} members &middot; {{ cv.counts.post_count }} topics &middot; {{ cv.counts.post_reply_count }} posts</td></tr>
+</table>
+{% endmacro %}
+{% block sidebar %}
+{% if kind == 'community' and cv.community.description %}<div class="about-forum-side">{{ about_forum() }}<br></div>{% endif %}
+{% include "sidebar.html" %}
+{% endblock %}
+{% block pagehead %}
+{% if kind != 'community' %}
+  <a class="maintitle" style="font-size:20px" href="">{{ topic.name }}</a>
+  {% if topic.description %}<br><span class="genmed">{{ topic.description }}</span>{% endif %}
+{% else %}
+  {% set c = cv.community %}
+  <a class="maintitle" style="font-size:20px" href="">{{ c.title }}</a>
+  <span class="gensmall muted">!{{ c|cref }}</span>
+  {% if mods %}<br><span class="gensmall">Moderators:
+    {% for mod in mods %}<a href="{{ url_for('bb.profile', username=mod.moderator|pref) }}">{{ mod.moderator|pname }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
+{% endif %}
+
+<table width="100%" style="margin-top:6px"><tr>
+  <td>
+    {% if kind == 'community' %}
+      {% if not cv.community.restricted_to_mods %}{{ m.button('post_new', 'New Topic', url_for('bb.new_topic', name=cv.community|cref)) }}{% endif %}
+      {{ m.follow_btn(cv) }}
+    {% endif %}
+  </td>
+  <td class="nav right"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+    {% if kind != 'community' and parent %}&raquo; <a href="{{ (url_for('bb.topic', topic_id=parent.id) if kind == 'topic' else url_for('bb.feed', feed_id=parent.id)) }}">{{ parent.name }}</a>{% endif %}
+    &raquo; {{ topic.name if kind != 'community' else cv.community.title }}
+    {% if (pages or 0) > 1 or page > 1 or has_next %}<br>{{ m.pagination(page, has_next, pages) }}{% endif %}</td>
+</tr></table>
+
+{% endblock %}
+{% block content %}
+{% if kind != 'community' and (topic.children or topic.communities) %}
+<table class="forumline" style="margin-bottom:8px">
+  <tr><th colspan="5">&nbsp;Subforums&nbsp;</th></tr>
+  {% for ch in topic.children %}{{ m.topic_row(ch, kind=kind) }}{% endfor %}
+  {% for c in topic.communities %}
+  <tr><td class="row1 center" width="46"><span class="forumicon"{% if c.icon %} style="background-image:url('{{ c.icon|cssurl }}')"{% endif %}></span></td>
+    <td class="row1" colspan="4"><a class="forumlink" href="{{ url_for('bb.community', name=c|cref) }}">{{ c.title or c.name }}</a>
+      {% if c.last %}<br><span class="gensmall">Last post: {{ c.last.time|bbdate }} in
+        <a href="{{ url_for('bb.thread', post_id=c.last.id, page='last') }}">{{ c.last.title|truncate(60, True) }}</a></span>{% endif %}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<table class="forumline">
+  {{ m.post_table_head() }}
+  {% if sticky %}{{ m.post_rows(sticky, kind != 'community') }}<tr><td class="spaceRow" colspan="6"></td></tr>{% endif %}
+  {{ m.post_rows(posts, kind != 'community') }}
+  {% if not sticky and not posts %}<tr><td class="row1 center gen" colspan="6">There are no posts in this forum.</td></tr>{% endif %}
+  <tr><td class="catBottom" colspan="6"></td></tr>
+</table>
+<table width="100%"><tr>
+  <td>{% if kind == 'community' and not cv.community.restricted_to_mods %}{{ m.button('post_new', 'New Topic', url_for('bb.new_topic', name=cv.community|cref)) }}{% endif %}</td>
+  <td class="right">
+    {% if logged_in and (sticky or posts) %}
+    <form class="inline" method="post" action="{{ url_for('bb.mark_read') }}">{{ m.csrf() }}
+      {% for pv in sticky + posts %}<input type="hidden" name="post_id" value="{{ pv.post.id }}">{% endfor %}
+      <button class="btnlink gensmall">Mark topics read</button></form> &nbsp;
+    {% endif %}
+    {{ m.pagination(page, has_next, pages) }}</td>
+</tr></table>
+
+{% if kind == 'community' and cv.community.description %}
+<div class="about-forum-bottom"><br>{{ about_forum() }}</div>
+{% endif %}
+{% endblock %}

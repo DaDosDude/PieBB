@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block pagehead %}
+<table width="100%"><tr>
+  <td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a></td>
+  <td class="right gensmall tabs">
+    {% for t in (['Subscribed'] if logged_in else []) + ['Local', 'All'] %}
+      <a class="{{ 'on' if t == listing }}" href="{{ url_for('bb.index', view='flat', type=t, sort=sort) }}">{{ t }}</a>
+    {% endfor %}
+    | Sort:
+    {% for s, label in [('Active','Active'), ('New','Newest'), ('Hot','Hot')] %}
+      <a class="{{ 'on' if s == sort }}" href="{{ url_for('bb.index', view='flat', type=listing, sort=s) }}">{{ label }}</a>
+    {% endfor %}
+  </td>
+</tr></table>
+
+{% endblock %}
+{% block content %}
+<table class="forumline">
+  <tr><th colspan="2">&nbsp;Forum&nbsp;</th><th>&nbsp;Topics&nbsp;</th><th class="hide-sm">&nbsp;Posts&nbsp;</th><th class="hide-sm">&nbsp;Members&nbsp;</th></tr>
+  <tr><td class="catLeft" colspan="5"><span class="cattitle">{{ listing }} communities</span></td></tr>
+  {% for c in communities %}{{ m.forum_row(c) }}{% else %}
+  <tr><td class="row1 center gen" colspan="5">No forums here.{% if listing == 'Subscribed' %} Try <a href="{{ url_for('bb.index', view='flat', type='Local') }}">Local</a>.{% endif %}</td></tr>
+  {% endfor %}
+</table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, communities|length >= 50) }}</td></tr></table>
+{% endblock %}

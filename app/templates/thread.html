@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% set p = pv.post %}
+{% block title %}{{ p.title }}{% if page > 1 %} - Page {{ page }}{% endif %} :: {% endblock %}
+
+{% macro postbit(person, is_admin, is_mod, banned, n) %}
+<td class="row1 postbit" rowspan="2">
+  {% if person.avatar %}<img class="avatar" src="{{ person.avatar|img }}" alt="" loading="lazy">{% endif %}
+  <span class="name"><a name="{{ n }}"></a><a href="{{ url_for('bb.profile', username=person|pref) }}">{{ person|pname }}</a></span>
+  <span class="rank">{% if is_admin %}Site Admin{% elif is_mod %}Moderator{% elif person.bot %}Bot{% elif not person.local %}{{ person.actor_id|domain }}{% else %}Member{% endif %}</span>
+  <span class="postdetails">
+    {% if (person|pref) != (person|pname) %}{{ person|pref }}<br>{% endif %}
+    Joined: {{ (person.published or '')[:10] }}
+    {% if banned %}<br><span style="color:#C00">Banned</span>{% endif %}
+    {% if me and person.id and person.id != me.id %}<br><a href="{{ url_for('bb.conversation', person_id=person.id) }}">Send PM</a>{% endif %}
+  </span>
+</td>
+{% endmacro %}
+{% macro edited(when) %}{% if when %} <span class="edited" title="Last edited {{ when[:16]|replace('T', ' ') }} UTC">(edited)</span>{% endif %}{% endmacro %}
+
+{% block pagehead %}
+<a class="maintitle" style="font-size:20px" href="{{ url_for('bb.thread', post_id=p.id) }}">{{ p.title }}</a>
+
+<table width="100%" style="margin-top:6px"><tr>
+  <td class="nowrap">
+    {% if not p.locked %}{{ m.button('reply_new', 'Post Reply', url_for('bb.reply', post_id=p.id)) }}{% else %}{% if theme.img('reply_locked') %}<img src="{{ theme.img('reply_locked') }}" alt="Topic Locked">{% else %}<span class="btn main">Topic Locked</span>{% endif %}{% endif %}
+  </td>
+  <td class="nav right"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+    &raquo; <a href="{{ url_for('bb.community', name=pv.community|cref) }}">{{ pv.community.title }}</a>
+    {% if pages > 1 or page > 1 %}<br>{{ m.pagination(page, has_next, pages) }}{% endif %}</td>
+</tr></table>
+
+{% endblock %}
+{% block content %}
+<table class="forumline">
+  <tr class="posthead"><th width="150">Author</th><th>Message</th></tr>
+
+  {% if page == 1 %}
+  <tr class="post">
+    {{ postbit(pv.creator, pv.creator_is_admin, pv.creator_is_moderator, pv.creator_banned_from_community, 'p' ~ p.id) }}
+    <td class="row1" width="100%" valign="top">
+      <table width="100%"><tr>
+        <td class="postdetails">{{ p.published|bbdate }}{{ edited(p.updated) }}</td>
+        <td class="right nowrap">{% if not p.locked %}{{ m.button('icon_quote', 'Quote', url_for('bb.reply', post_id=p.id, quote=1), False) }}{% endif %}</td>
+      </tr></table>
+      <hr>
+      <div class="postbody">
+        {% if p.url and p.url|url != '#' %}
+          {% if p.url is image %}<a href="{{ p.url|url }}" rel="nofollow noopener"><img src="{{ p.url|img }}" alt="{{ p.alt_text or '' }}" style="max-width:100%"></a>
+          {% else %}<div class="linkbox">{% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url|img }}" alt="" loading="lazy"><br>{% endif %}
+            Link: <a href="{{ p.url|url }}" rel="nofollow noopener ugc">{{ p.url }}</a></div>{% endif %}
+        {% endif %}
+        {% if p.deleted %}<i class="muted">[deleted by its author]</i>{% else %}{{ p.body|md }}{{ m.post_extras(p) }}{% endif %}
+      </div>
+      {% if p.removed %}<div class="flash">This topic has been removed by a moderator.</div>{% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td class="row1 gensmall">{{ m.votes('post', p.id, pv.counts, pv.my_vote) }}
+      &nbsp; <a href="{{ p.ap_id|url }}" rel="nofollow noopener">Original</a>
+      {{ m.useractions('post', p.id, pv.creator, p.deleted) }}
+      {% if can_mod(pv.community.id) %}&nbsp;|&nbsp; {{ m.modbar('post', p.id, p, pv.community.id, pv.creator.id) }}{% endif %}</td>
+  </tr>
+  <tr><td class="spaceRow" colspan="2"></td></tr>
+  {% endif %}
+
+  {% for c in comments %}
+  {% set cm = c.comment %}
+  <tr class="post">
+    {{ postbit(c.creator, c.creator_is_admin, c.creator_is_moderator, c.creator_banned_from_community, 'c' ~ cm.id) }}
+    <td class="{{ loop.cycle('row2', 'row1') }}" width="100%" valign="top">
+      <table width="100%"><tr>
+        <td class="postdetails"><a href="#c{{ cm.id }}">#{{ offset + loop.index + 1 }}</a>
+          &middot; {{ cm.published|bbdate }}{{ edited(cm.updated) }}</td>
+        <td class="right nowrap">{% if not p.locked %}
+          {{ m.button('icon_quote', 'Quote', url_for('bb.reply', post_id=p.id, parent=cm.id, quote=1), False) }}
+          <a class="btn" href="{{ url_for('bb.reply', post_id=p.id, parent=cm.id) }}">Reply</a>{% endif %}</td>
+      </tr></table>
+      <hr>
+      {% if c.parent_id %}
+        {% set plink = '#c' ~ c.parent_id if c.parent_here else url_for('bb.comment_link', comment_id=c.parent_id) %}
+        {% if c.parent %}
+        {% set pc = c.parent.comment %}
+        <div class="quotehead"><a href="{{ plink }}">{{ c.parent.creator|pname }} wrote:</a></div>
+        <div class="quote">{% if pc.deleted %}<i>[deleted]</i>{% elif pc.removed %}<i>[removed by moderator]</i>{% else %}{% set qtext, qimgs = pc.body|quote_parts %}{{ qtext|truncate(400, True) }}
+          {% if qimgs %}<div class="quoteimgs">{% for src in qimgs %}<a href="{{ src }}" rel="nofollow noopener"><img src="{{ src }}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}{% endif %}</div>
+        {% else %}<div class="replyto">In reply to <a href="{{ plink }}">an earlier post</a></div>{% endif %}
+      {% endif %}
+      <div class="postbody">
+        {% if cm.deleted %}<i class="muted">[deleted]</i>
+        {% elif cm.removed and can_mod(pv.community.id) %}<i class="muted">[removed by moderator]</i><div class="removed">{{ cm.body|md }}</div>
+        {% elif cm.removed %}<i class="muted">[removed by moderator]</i>{% else %}{{ cm.body|md }}{% endif %}
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td class="{{ loop.cycle('row2', 'row1') }} gensmall">{{ m.votes('comment', cm.id, c.counts, c.my_vote) }}
+      {% if cm.distinguished %}&nbsp;<b>[mod]</b>{% endif %}
+      {{ m.useractions('comment', cm.id, c.creator, cm.deleted) }}
+      {% if can_mod(pv.community.id) %}&nbsp;|&nbsp; {{ m.modbar('comment', cm.id, cm, pv.community.id, c.creator.id) }}{% endif %}</td>
+  </tr>
+  <tr><td class="spaceRow" colspan="2"></td></tr>
+  {% endfor %}
+
+  <tr><td class="catBottom" colspan="2"><a name="bottom"></a></td></tr>
+</table>
+
+<table width="100%"><tr>
+  <td>{% if not p.locked %}{{ m.button('reply_new', 'Post Reply', url_for('bb.reply', post_id=p.id)) }}{% endif %}</td>
+  <td class="right">{{ m.pagination(page, has_next, pages) }}<br>
+    <span class="gensmall"><a href="#top">Back to top</a></span></td>
+</tr></table>
+
+{% if logged_in and not p.locked %}
+<br>
+<form method="post" action="{{ url_for('bb.reply', post_id=p.id) }}">{{ m.csrf() }}
+<table class="forumline">
+  <tr><td class="catHead"><span class="cattitle">Quick Reply</span></td></tr>
+  <tr><td class="row1">{{ m.md_toolbar() }}<textarea name="body" rows="6"></textarea></td></tr>
+  <tr><td class="catBottom center"><input type="submit" value="Submit"> <input type="submit" name="preview" value="Preview"></td></tr>
+</table>
+</form>
+{% endif %}
+{% endblock %}

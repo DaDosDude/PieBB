@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Private Messages :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Private Messages</td></tr></table>
+<table class="forumline">
+  <tr><th colspan="2">&nbsp;Conversation&nbsp;</th><th>&nbsp;Last message&nbsp;</th></tr>
+  {% for c in rows %}
+  <tr>
+    <td class="row1 center" width="30">{% if c.unread %}<span class="folder new" title="Unread"></span>{% else %}<span class="folder"></span>{% endif %}</td>
+    <td class="row1" width="100%">
+      <a class="topictitle" href="{{ url_for('bb.conversation', person_id=c.other.id) }}">{{ c.other|pname }}</a>
+      <span class="gensmall muted">{{ c.other|pref }}</span>{% if c.unread %} <span class="gensmall" style="color:#DD6900">{{ c.unread }} new</span>{% endif %}
+      <br><span class="gensmall">{{ c.last.content|plain|truncate(100, True) }}</span>
+    </td>
+    <td class="row2 center gensmall nowrap">{{ c.last.published|bbdate }}</td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">No private messages. Open someone's profile or post to send one.</td></tr>
+  {% endfor %}
+</table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endblock %}

@@ -1,0 +1,22 @@
+/* Charcoal: dark variant layered over subsilver.css */
+body { background: #1B1D20; color: #D8DCE0; }
+a { color: #7FB4E0; } a:hover { color: #FFA34F; }
+.wrap, .bodyline { background: #24272B; border-color: #3A4048; }
+table.forumline { background: #24272B; border-color: #3A5A78; }
+th { color: #FFB86B; background: linear-gradient(#3A5A78, #2C4760 55%, #233A50); }
+td.row1 { background: #2B2F34; } td.row2 { background: #30353B; } td.row3, td.spaceRow { background: #262A2F; }
+td.catHead, td.catLeft, td.catBottom, .sidebar-top summary { background: linear-gradient(#3A4048, #30363D 50%, #2A2F35); border-color: #24272B; }
+.cattitle, .sidebar-top summary { color: #9CC7EA; }
+.maintitle, .maintitle:hover, .nav, .postdetails, .gensmall, .gen, .genmed, .rank { color: #D8DCE0; }
+.muted, .replyto, .copyright { color: #9AA3AD; }
+.postbody blockquote, .quote, .linkbox, .postbody pre, .postbody code { background: #1F2226; border-color: #3A4048; color: #C8CDD2; }
+.postbody pre, .postbody code { color: #8FD18F; }
+hr { border-top-color: #3A4048; }
+input[type=text], input[type=password], input[type=url], input[type=search], textarea, select { background: #1F2226; color: #D8DCE0; border-color: #4A525C; }
+.btn, input[type=submit], button { background: linear-gradient(#3A4048, #2A2F35); color: #D8DCE0; border-color: #4A525C; }
+.btnlink { background: none; border: 0; color: #7FB4E0; }
+.folder { border-color: #6A7A88; background: linear-gradient(#3A4048, #2A2F35); }
+.forumicon, .header .logo { background-color: #30353B; border-color: #4A525C; }
+.header .logo { box-shadow: inset 0 0 0 3px #24272B; }
+.avatar { background: #24272B; border-color: #4A525C; }
+.flash { background: #3A3320; border-color: #FFA34F; color: #F0E6C8; }

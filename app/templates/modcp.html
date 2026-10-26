@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Moderator Control Panel :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Moderator Control Panel</td></tr></table>
+<p class="gensmall">Reports from the communities you moderate{% if is_admin %} (all communities, as site admin){% endif %}.</p>
+{% include "_moderation_body.html" %}
+{% endblock %}

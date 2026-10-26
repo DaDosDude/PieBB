@@ -1,0 +1,222 @@
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ csrf_token() }}">{% endmacro %}
+
+{# phpBB-style "Page X of Y · Goto page « First Previous 1 ... 4, 5, 6 ... 20 Next Last »".
+   pages = total page count when known (threads, communities); otherwise only the pages
+   reached so far are numbered and there is no Last link. #}
+{% macro pagination(page, has_next, pages=None, anchor='') %}
+{% set args = request.args.to_dict() %}
+{% set last = [pages or 0, page + (1 if has_next else 0), page]|max %}
+{% if last > 1 %}
+<span class="pagination">
+  {% if pages %}<span class="pageof">Page <b>{{ page }}</b> of <b>{{ last }}</b></span> &nbsp;{% endif %}
+  <span class="gotopage">Goto page
+  {% if page > 1 %}
+    <a href="?{{ dict(args, page=1)|urlencode }}{{ anchor }}" title="First page">&laquo;&nbsp;First</a>
+    <a href="?{{ dict(args, page=page - 1)|urlencode }}{{ anchor }}" rel="prev">Previous</a>
+  {% endif %}
+  {% set lo = [page - 2, 1]|max %}{% set hi = [page + 2, last]|min %}
+  {%- if lo > 1 %} <a href="?{{ dict(args, page=1)|urlencode }}{{ anchor }}">1</a>{{ ' ...' if lo > 2 else ',' }}{% endif %}
+  {%- for n in range(lo, hi + 1) %} {% if n == page %}<b class="curpage">{{ n }}</b>{% else %}<a href="?{{ dict(args, page=n)|urlencode }}{{ anchor }}">{{ n }}</a>{% endif %}{{ ',' if not loop.last }}{% endfor %}
+  {%- if hi < last %}{{ ' ...' if hi < last - 1 else ',' }}{% if pages %} <a href="?{{ dict(args, page=last)|urlencode }}{{ anchor }}">{{ last }}</a>{% endif %}{% endif %}
+  {% if page < last %}
+    <a href="?{{ dict(args, page=page + 1)|urlencode }}{{ anchor }}" rel="next">Next</a>
+    {% if pages %}<a href="?{{ dict(args, page=last)|urlencode }}{{ anchor }}" title="Last page">Last&nbsp;&raquo;</a>{% endif %}
+  {% endif %}
+  </span>
+  {% if pages and last > 5 %}
+  <form class="inline jumppage" method="get" action="">
+    {% for k, v in args.items() if k != 'page' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="number" name="page" min="1" max="{{ last }}" placeholder="#" aria-label="Jump to page"><button class="btnlink">Go</button>
+  </form>
+  {% endif %}
+</span>
+{% endif %}
+{% endmacro %}
+
+{# The little "[ Goto page: 1, 2, 3 ... 9 ]" under a topic title in topic lists #}
+{% macro mini_pages(post_id, comments, per_page) %}
+{% set pages = ((comments + per_page - 1) // per_page) if comments > 0 else 1 %}
+{% if pages > 1 %}
+<br><span class="gensmall minipages">[ Goto page:
+{% if pages <= 4 %}{% for n in range(1, pages + 1) %}<a href="{{ url_for('bb.thread', post_id=post_id, page=n) }}">{{ n }}</a>{{ ', ' if not loop.last }}{% endfor %}
+{% else %}<a href="{{ url_for('bb.thread', post_id=post_id, page=1) }}">1</a>, <a href="{{ url_for('bb.thread', post_id=post_id, page=2) }}">2</a>, <a href="{{ url_for('bb.thread', post_id=post_id, page=3) }}">3</a> ... <a href="{{ url_for('bb.thread', post_id=post_id, page=pages) }}">{{ pages }}</a>{% endif %} ]</span>
+{% endif %}
+{% endmacro %}
+
+{% macro votes(kind, obj_id, counts, my_vote) %}
+<span class="votes">
+{% if logged_in %}
+  <form class="inline" method="post" action="{{ url_for('bb.vote', kind=kind, obj_id=obj_id) }}">{{ csrf() }}
+    <input type="hidden" name="score" value="{{ 0 if my_vote == 1 else 1 }}">
+    <button class="btnlink{% if my_vote == 1 %} on{% endif %}" title="Thumbs up">[+]</button></form>
+{% endif %}
+<span class="score" title="{{ counts.upvotes }} up / {{ counts.downvotes }} down">{{ counts.score }}</span>
+{% if logged_in and site.enable_downvotes is not false %}
+  <form class="inline" method="post" action="{{ url_for('bb.vote', kind=kind, obj_id=obj_id) }}">{{ csrf() }}
+    <input type="hidden" name="score" value="{{ 0 if my_vote == -1 else -1 }}">
+    <button class="btnlink{% if my_vote == -1 %} on{% endif %}" title="Thumbs down">[&minus;]</button></form>
+{% endif %}
+</span>
+{% endmacro %}
+
+{% macro follow_btn(cv) %}
+{% if logged_in and cv %}
+<form class="inline" method="post" action="{{ url_for('bb.follow', community_id=cv.community.id) }}">{{ csrf() }}
+  {% if cv.subscribed == 'NotSubscribed' %}
+    <input type="hidden" name="follow" value="1"><button class="btn">Subscribe</button>
+  {% else %}
+    <input type="hidden" name="follow" value="0"><button class="btn">{{ 'Pending...' if cv.subscribed == 'Pending' else 'Unsubscribe' }}</button>
+  {% endif %}
+</form>
+{% endif %}
+{% endmacro %}
+
+{% macro forum_row(c, cls='row1') %}
+{# c is a CommunityView #}
+<tr>
+  <td class="{{ cls }} center" width="46">
+    <span class="forumicon"{% if c.community.icon %} style="background-image:url('{{ c.community.icon|cssurl }}')"{% endif %}></span></td>
+  <td class="{{ cls }}" width="100%">
+    <a class="forumlink" href="{{ url_for('bb.community', name=c.community|cref) }}">{{ c.community.title }}</a>
+    {% if not c.community.local %}<span class="gensmall muted">@{{ c.community.ap_domain or (c.community.actor_id|domain) }}</span>{% endif %}
+    {% if c.community.nsfw %}<span class="gensmall" style="color:#C00">[NSFW]</span>{% endif %}
+    <br><span class="genmed">{{ c.community.description|plain|truncate(160, True) }}</span>
+  </td>
+  <td class="row2 center gensmall">{{ c.counts.post_count }}</td>
+  <td class="row2 center gensmall hide-sm">{{ c.counts.post_reply_count }}</td>
+  <td class="row2 center gensmall hide-sm">{{ c.counts.subscriptions_count }}<br><span class="muted">{{ c.counts.active_monthly }} active</span></td>
+</tr>
+{% endmacro %}
+
+{% macro topic_row(t, cls='row1', kind='topic') %}
+{% set ep = 'bb.feed' if kind == 'feed' else 'bb.topic' %}
+<tr>
+  <td class="{{ cls }} center" width="46">{% if theme.img('forum') %}<img src="{{ theme.img('forum') }}" alt="">{% else %}<span class="folder"></span>{% endif %}</td>
+  <td class="{{ cls }}" width="100%" colspan="4">
+    <a class="forumlink" href="{{ url_for(ep, **{kind ~ '_id': t.id}) }}">{{ t.name }}</a>
+    {% if t.description %}<br><span class="genmed">{{ t.description|plain|truncate(160, True) }}</span>{% endif %}
+    {% if t.children %}<br><span class="gensmall"><b>Subforums:</b>
+      {% for ch in t.children %}<a href="{{ url_for(ep, **{kind ~ '_id': ch.id}) }}">{{ ch.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro post_rows(posts, show_community=False) %}
+{% for pv in posts %}
+{% set p = pv.post %}
+<tr>
+  <td class="row1 center" width="30">
+    {% set fkey = 'folder_sticky' if p.sticky else 'folder_locked' if p.locked else 'folder_new' if (not pv.read and logged_in) else 'folder_hot' if pv.counts.comments > 50 else 'folder' %}
+    {% set ftitle = 'Sticky' if p.sticky else 'Locked' if p.locked else 'New posts' if (not pv.read and logged_in) else 'No new posts' %}
+    {% if theme.img(fkey) %}<img src="{{ theme.img(fkey) }}" alt="{{ ftitle }}" title="{{ ftitle }}">
+    {% else %}<span class="folder{{ {'folder_sticky': ' sticky', 'folder_locked': ' locked', 'folder_new': ' new', 'folder_hot': ' hot'}.get(fkey, '') }}" title="{{ ftitle }}"></span>{% endif %}</td>
+  <td class="row1" width="100%">
+    {% if p.sticky %}<b>Sticky:</b> {% endif %}{% if p.locked %}<b>Locked:</b> {% endif %}
+    <a class="topictitle" href="{{ url_for('bb.thread', post_id=p.id) }}">{{ p.title }}</a>
+    {% if p.url and p.url|domain and p.url|url != '#' %}<span class="gensmall muted">({{ p.url|domain }})</span>{% endif %}
+    {% if p.nsfw %}<span class="gensmall" style="color:#C00">[NSFW]</span>{% endif %}
+    {% if pv.unread_comments and logged_in and pv.read %}<span class="gensmall" style="color:#DD6900">{{ pv.unread_comments }} new</span>{% endif %}
+    {{ mini_pages(p.id, pv.counts.comments, comments_per_page) }}
+    {% if show_community %}<br><span class="gensmall">in <a href="{{ url_for('bb.community', name=pv.community|cref) }}">{{ pv.community.title }}</a></span>{% endif %}
+  </td>
+  <td class="row2 center gensmall">{{ pv.counts.comments }}</td>
+  <td class="row3 center gensmall hide-sm"><a href="{{ url_for('bb.profile', username=pv.creator|pref) }}">{{ pv.creator|pname }}</a></td>
+  <td class="row2 center gensmall hide-sm">{{ pv.counts.score }}</td>
+  <td class="row3 center gensmall nowrap">{{ (pv.counts.newest_comment_time or p.published)|bbdate }}
+    <a href="{{ url_for('bb.thread', post_id=p.id, page='last') }}" title="View latest post">&raquo;</a></td>
+</tr>
+{% endfor %}
+{% endmacro %}
+
+{% macro post_table_head(label='Topics') %}
+<tr><th colspan="2">&nbsp;{{ label }}&nbsp;</th><th>&nbsp;Replies&nbsp;</th><th class="hide-sm">&nbsp;Author&nbsp;</th><th class="hide-sm">&nbsp;Score&nbsp;</th><th>&nbsp;Last Post&nbsp;</th></tr>
+{% endmacro %}
+
+{% macro button(key, label, href, main=True) %}
+{% if theme.img(key) %}<a href="{{ href }}"><img src="{{ theme.img(key) }}" alt="{{ label }}" title="{{ label }}" style="vertical-align:middle"></a>
+{% else %}<a class="btn{{ ' main' if main }}" href="{{ href }}">{{ label }}</a>{% endif %}
+{% endmacro %}
+
+{% macro modbar(kind, obj_id, flags, community_id, user_id) %}
+<details class="modbar"><summary>Moderate</summary>
+  <form class="inline" method="post" action="{{ url_for('bb.moderate', kind=kind, obj_id=obj_id) }}">{{ csrf() }}
+    {% if kind == 'post' %}
+    <button class="btnlink" name="action" value="{{ 'unlock' if flags.locked else 'lock' }}">{{ 'Unlock' if flags.locked else 'Lock' }}</button> &middot;
+    <button class="btnlink" name="action" value="{{ 'unsticky' if flags.sticky else 'sticky' }}">{{ 'Unsticky' if flags.sticky else 'Sticky' }}</button> &middot;
+    {% endif %}
+    <input type="text" name="reason" placeholder="reason" class="reason">
+    <button class="btnlink" name="action" value="{{ 'restore' if flags.removed else 'remove' }}">{{ 'Restore' if flags.removed else 'Remove' }}</button>
+  </form> &middot;
+  <a href="{{ url_for('bb.ban', community_id=community_id, user_id=user_id) }}">Ban user</a>
+</details>
+{% endmacro %}
+
+{% macro useractions(kind, obj_id, creator, deleted) %}
+{% if me and creator and creator.id == me.id %}
+  &nbsp;|&nbsp;
+  {% if not deleted %}<a href="{{ url_for('bb.edit_topic', post_id=obj_id) if kind == 'post' else url_for('bb.edit_reply', comment_id=obj_id) }}">Edit</a> &middot;{% endif %}
+  <form class="inline" method="post" action="{{ url_for('bb.delete_own', kind=kind, obj_id=obj_id) }}"
+        onsubmit="return confirm('{{ 'Restore' if deleted else 'Delete' }} this {{ 'topic' if kind == 'post' else 'post' }}?')">{{ csrf() }}
+    <input type="hidden" name="deleted" value="{{ '0' if deleted else '1' }}">
+    <button class="btnlink">{{ 'Restore' if deleted else 'Delete' }}</button></form>
+{% elif logged_in %}
+  &nbsp;|&nbsp; <a href="{{ url_for('bb.report', kind=kind, obj_id=obj_id) }}">Report</a>
+{% endif %}
+{% endmacro %}
+
+{% macro post_extras(p) %}
+{% if p.poll and p.poll.choices %}{{ poll_box(p) }}{% endif %}
+{% if p.event %}{{ event_box(p.event) }}{% endif %}
+{% if p.gallery %}<div class="gallery">{% for u in p.gallery %}{% if u|url != '#' %}<a href="{{ u|url }}" rel="nofollow noopener"><img src="{{ u|img }}" alt="" loading="lazy"></a>{% endif %}{% endfor %}</div>{% endif %}
+{% endmacro %}
+
+{% macro poll_box(p) %}
+{% set poll = p.poll %}
+{% set voted = poll.my_votes|length > 0 %}
+<form method="post" action="{{ url_for('bb.poll_vote', post_id=p.id) }}" class="poll">{{ csrf() }}
+<table class="forumline" style="max-width:520px;margin:8px 0">
+  <tr><th colspan="3">Poll{% if poll.mode == 'multiple' %} (choose any){% endif %}{% if poll.closed %} &middot; closed{% elif poll.end %} &middot; closes {{ poll.end|bbdate }}{% endif %}</th></tr>
+  {% for c in poll.choices %}
+  <tr>
+    <td class="row1 gen" width="45%">
+      {% if logged_in and not voted and not p.locked and not poll.closed %}
+        <label><input type="{{ 'checkbox' if poll.mode == 'multiple' else 'radio' }}" name="choice" value="{{ c.id }}"> {{ c.text }}</label>
+      {% else %}{{ c.text }}{% if c.id in poll.my_votes %} <b>&#10003;</b>{% endif %}{% endif %}
+    </td>
+    <td class="row2" width="40%"><div class="pollbar"><span style="width:{{ c.percent }}%"></span></div></td>
+    <td class="row1 gensmall nowrap">{{ c.percent }}% ({{ c.votes }})</td>
+  </tr>
+  {% endfor %}
+  <tr><td class="catBottom gensmall" colspan="3">{{ poll.total }} vote{{ '' if poll.total == 1 else 's' }}
+    {% if logged_in and not voted and not p.locked and not poll.closed %}&nbsp; <input type="submit" value="Vote">{% endif %}</td></tr>
+</table>
+</form>
+{% endmacro %}
+
+{% macro event_box(e) %}
+<table class="forumline" style="max-width:520px;margin:8px 0">
+  <tr><th colspan="2">Event</th></tr>
+  <tr><td class="row1 gen" width="30%"><b>Starts</b></td><td class="row2 gen">{{ e.start|bbdate }}</td></tr>
+  {% if e.end %}<tr><td class="row1 gen"><b>Ends</b></td><td class="row2 gen">{{ e.end|bbdate }}</td></tr>{% endif %}
+  {% if e.location %}<tr><td class="row1 gen"><b>Where</b></td><td class="row2 gen">{{ e.location }}</td></tr>{% endif %}
+  {% if e.online and e.online_link and e.online_link|url != '#' %}<tr><td class="row1 gen"><b>Online</b></td><td class="row2 gen"><a href="{{ e.online_link|url }}" rel="nofollow noopener">{{ e.online_link|domain }}</a></td></tr>{% endif %}
+  <tr><td class="row1 gen"><b>Going</b></td><td class="row2 gen">{{ e.participants }}{% if e.max %} / {{ e.max }}{% endif %}{% if e.full %} (full){% endif %}</td></tr>
+  {% if e.tickets and e.tickets|url != '#' %}<tr><td class="row1 gen"><b>Tickets</b></td><td class="row2 gen"><a href="{{ e.tickets|url }}" rel="nofollow noopener">{{ e.tickets|domain }}</a></td></tr>{% endif %}
+</table>
+{% endmacro %}
+
+{# phpBB-style formatting buttons above a message box; they insert markdown (needs qol.js, hidden without JS) #}
+{% macro md_toolbar() %}
+<div class="mdbar" hidden>
+  <button type="button" data-md="bold" title="Bold: **text**"><b>B</b></button>
+  <button type="button" data-md="italic" title="Italic: *text*"><i>i</i></button>
+  <button type="button" data-md="strike" title="Strikethrough: ~~text~~"><s>S</s></button>
+  <button type="button" data-md="quote" title="Quote: &gt; text">Quote</button>
+  <button type="button" data-md="code" title="Code">Code</button>
+  <button type="button" data-md="list" title="List: - item">List</button>
+  <button type="button" data-md="olist" title="Numbered list: 1. item">List=</button>
+  <button type="button" data-md="link" title="Link: [text](https://...)">URL</button>
+  <button type="button" data-md="image" title="Image from the web: ![](https://...)">Img</button>
+  <button type="button" data-md="spoiler" title="Spoiler">Spoiler</button>
+</div>
+{% endmacro %}

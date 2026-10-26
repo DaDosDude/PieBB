@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Search :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Search</td></tr></table>
+<form method="get">
+<table class="forumline">
+  <tr><th colspan="2">Search Query</th></tr>
+  <tr><td class="row1 gen" width="22%"><b>Search for keywords:</b></td>
+      <td class="row2"><input type="search" name="q" value="{{ q }}" style="width:60%">
+        <select name="type">{% for t in ['Posts', 'Comments', 'Communities', 'Users'] %}<option{% if t == stype %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+        <input type="submit" value="Search"></td></tr>
+</table>
+</form>
+
+{% if q %}
+<br>
+{% if stype == 'Posts' %}
+<table class="forumline">{{ m.post_table_head('Results') }}{{ m.post_rows(res.posts or [], True) }}
+  {% if not res.posts %}<tr><td class="row1 center gen" colspan="6">No topics found.</td></tr>{% endif %}</table>
+{% elif stype == 'Comments' %}
+<table class="forumline"><tr><th colspan="2">Results</th></tr>
+  {% for c in res.comments or [] %}
+  <tr><td class="row2 gensmall" width="25%" valign="top"><a href="{{ url_for('bb.comment_link', comment_id=c.comment.id) }}">Re: {{ c.post.title|truncate(50, True) }}</a><br>
+      by {{ c.creator|pname }}<br>{{ c.comment.published|bbdate }}</td>
+    <td class="row1 postbody">{{ c.comment.body|truncate(400, True)|md }}</td></tr>
+  {% else %}<tr><td class="row1 center gen" colspan="2">No posts found.</td></tr>{% endfor %}</table>
+{% elif stype == 'Communities' %}
+<table class="forumline"><tr><th colspan="2">&nbsp;Forum&nbsp;</th><th>&nbsp;Topics&nbsp;</th><th class="hide-sm">&nbsp;Posts&nbsp;</th><th class="hide-sm">&nbsp;Members&nbsp;</th></tr>
+  {% for c in res.communities or [] %}{{ m.forum_row(c) }}{% else %}<tr><td class="row1 center gen" colspan="5">No forums found.</td></tr>{% endfor %}</table>
+{% else %}
+<table class="forumline"><tr><th>Username</th><th>Topics</th><th>Posts</th></tr>
+  {% for u in res.users or [] %}<tr><td class="row1 gen"><a href="{{ url_for('bb.profile', username=u.person|pref) }}">{{ u.person|pname }}</a> <span class="gensmall muted">{{ u.person|pref }}</span></td>
+    <td class="row2 center gensmall">{{ u.counts.post_count }}</td><td class="row2 center gensmall">{{ u.counts.comment_count }}</td></tr>
+  {% else %}<tr><td class="row1 center gen" colspan="3">No users found.</td></tr>{% endfor %}</table>
+{% endif %}
+<table width="100%"><tr><td class="right">{{ m.pagination(page, ((res.posts or res.comments or res.communities or res.users or [])|length) >= 25) }}</td></tr></table>
+{% endif %}
+{% endblock %}

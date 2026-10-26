@@ -1,0 +1,90 @@
+{# shared by admin/moderation.html and modcp.html; needs `panel` #}
+{% import "macros.html" as m with context %}
+<table width="100%"><tr><td class="tabs gen">
+  <a class="{{ 'on' if show == 'reports' }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='reports') }}">Reports</a>
+  <a class="{{ 'on' if show == 'modlog' }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='modlog') }}">Moderation log</a>
+  {% if show == 'reports' %}&nbsp;|&nbsp;
+    <a class="{{ 'on' if unresolved }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='reports') }}">Open</a>
+    <a class="{{ 'on' if not unresolved }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='reports', all=1) }}">All</a>
+  {% endif %}
+</td></tr></table>
+
+{% if error %}<div class="flash">PieFed returned an error: {{ error }}</div>{% endif %}
+
+{% macro resolve_form(kind, report) %}
+<form class="inline" method="post" action="{{ url_for('admin.resolve_report' if panel == 'admin' else 'bb.modcp_resolve') }}">{{ m.csrf() }}
+  <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="report_id" value="{{ report.id }}">
+  {% if report.resolved %}<input type="hidden" name="resolved" value="0"><button class="btnlink">Reopen</button>
+  {% else %}<input type="hidden" name="resolved" value="1"><input type="submit" value="Resolve">{% endif %}
+</form>
+{% endmacro %}
+
+{% if show == 'reports' %}
+<table class="forumline" style="margin-top:6px">
+  <tr><th colspan="3">Reported topics</th></tr>
+  {% for r in data.posts %}
+  <tr>
+    <td class="row1 gensmall" width="22%" valign="top">
+      <b>{{ r.post_report.reason or 'No reason' }}</b><br>{{ r.post_report.published|bbdate }}
+      {% if r.post_report.resolved %}<br><span class="muted">resolved</span>{% endif %}
+    </td>
+    <td class="row1 gen" valign="top">
+      <a class="topictitle" href="{{ url_for('bb.thread', post_id=r.post.id) }}">{{ r.post.title }}</a>
+      <span class="gensmall">by <a href="{{ url_for('bb.profile', username=r.post_creator|pref) }}">{{ r.post_creator|pname }}</a>
+        in <a href="{{ url_for('bb.community', name=r.community|cref) }}">{{ r.community.title }}</a></span>
+      {% if r.post_report.description %}<div class="quote">{{ r.post_report.description }}</div>{% endif %}
+      {% if r.post.removed %}<span class="gensmall" style="color:#C00">Removed</span>{% endif %}
+    </td>
+    <td class="row2 center nowrap" width="90">{{ resolve_form('post', r.post_report) }}</td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">No reported topics.</td></tr>
+  {% endfor %}
+</table>
+<br>
+<table class="forumline">
+  <tr><th colspan="3">Reported posts</th></tr>
+  {% for r in data.comments %}
+  <tr>
+    <td class="row1 gensmall" width="22%" valign="top">
+      <b>{{ r.comment_report.reason or 'No reason' }}</b><br>{{ r.comment_report.published|bbdate }}
+      {% if r.comment_report.resolved %}<br><span class="muted">resolved</span>{% endif %}
+    </td>
+    <td class="row1 gen" valign="top">
+      <a href="{{ url_for('bb.comment_link', comment_id=r.comment.id) }}">Post #{{ r.comment.id }}</a>
+      <span class="gensmall">by <a href="{{ url_for('bb.profile', username=r.comment_creator|pref) }}">{{ r.comment_creator|pname }}</a></span>
+      <div class="quote">{{ (r.comment_report.original or r.comment.body)|plain|truncate(300, True) }}</div>
+      {% if r.comment_report.description %}<span class="gensmall"><b>Reporter:</b> {{ r.comment_report.description }}</span>{% endif %}
+      {% if r.comment.removed %}<span class="gensmall" style="color:#C00">Removed</span>{% endif %}
+    </td>
+    <td class="row2 center nowrap" width="90">{{ resolve_form('comment', r.comment_report) }}</td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">No reported posts.</td></tr>
+  {% endfor %}
+</table>
+<p class="gensmall">To remove reported content or ban the author, open it and use the moderator links under the post.</p>
+
+{% else %}
+<table class="forumline" style="margin-top:6px">
+  <tr><th>When</th><th>Moderator</th><th>Action</th><th class="hide-sm">Target</th><th class="hide-sm">Reason</th></tr>
+  {% for e in data.modlog %}
+  <tr>
+    <td class="row1 gensmall nowrap">{{ e.when|bbdate }}</td>
+    <td class="row2 gensmall">{% if e.moderator %}<a href="{{ url_for('bb.profile', username=e.moderator|pref) }}">{{ e.moderator|pname }}</a>{% else %}<span class="muted">hidden</span>{% endif %}</td>
+    <td class="row1 gensmall"><b>{{ e.action }}</b>{% if e.expires %}<br><span class="muted">until {{ e.expires|bbdate }}</span>{% endif %}</td>
+    <td class="row2 gensmall hide-sm">
+      {% if e.post and e.post.id %}<a href="{{ url_for('bb.thread', post_id=e.post.id) }}">{{ e.post.title|truncate(60, True) }}</a>{% endif %}
+      {% if e.comment and e.comment.id %}<br><a href="{{ url_for('bb.comment_link', comment_id=e.comment.id) }}">post #{{ e.comment.id }}</a>{% endif %}
+      {% if e.person %}<a href="{{ url_for('bb.profile', username=e.person|pref) }}">{{ e.person|pname }}</a>{% endif %}
+      {% if e.community and e.community.id %}<br>in <a href="{{ url_for('bb.community', name=e.community|cref) }}">{{ e.community.title }}</a>{% endif %}
+    </td>
+    <td class="row1 gensmall hide-sm">{{ e.reason or '' }}</td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="5">Nothing in the moderation log{% if page > 1 %} on this page{% endif %}.</td></tr>
+  {% endfor %}
+</table>
+{% if panel != 'admin' %}<p class="gensmall">PieFed only shows moderators the public entries of the log; site admins see everything.</p>{% endif %}
+{% endif %}
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>

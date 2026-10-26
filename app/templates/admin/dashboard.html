@@ -1,0 +1,14 @@
+{% extends "admin/base.html" %}
+{% block admin %}
+<table class="forumline">
+  <tr><th colspan="2">Overview</th></tr>
+  <tr><td class="row1 gen" width="35%"><b>Forum title</b></td><td class="row2 gen">{{ settings.forum_title or '(PieFed site name)' }}</td></tr>
+  <tr><td class="row1 gen"><b>Index</b></td><td class="row2 gen">{{ 'Categories (topics)' if settings.index_mode == 'topics' else 'Flat forum list' }}</td></tr>
+  <tr><td class="row1 gen"><b>Guests</b></td><td class="row2 gen">{{ 'Must log in' if settings.login_required else 'Can browse' }}</td></tr>
+  <tr><td class="row1 gen"><b>Theme</b></td><td class="row2 gen">{% for t in themes if t.slug == settings.theme %}{{ t.name }}{% endfor %}</td></tr>
+  <tr><td class="row1 gen"><b>Layout overrides</b></td><td class="row2 gen">{{ settings.layout|length }} item(s) renamed, reordered or hidden</td></tr>
+  <tr><td class="row1 gen"><b>PieFed</b></td><td class="row2 gen"><a href="{{ piefed_url }}">{{ piefed_url }}</a></td></tr>
+</table>
+<p class="gensmall">Changes here only affect this forum frontend. Users, communities and posts are managed in PieFed itself;
+moderation buttons in topics act on PieFed directly.</p>
+{% endblock %}

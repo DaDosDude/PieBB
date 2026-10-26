@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% set topic_like = mode in ('topic', 'edit_topic') %}
+{% set heading = {'topic': 'Post a new topic', 'reply': 'Post a reply', 'edit_topic': 'Edit topic', 'edit_reply': 'Edit post'}[mode] %}
+{% block title %}{{ heading }} :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav">
+  <a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  {% if mode == 'topic' %}&raquo; <a href="{{ url_for('bb.community', name=cv.community|cref) }}">{{ cv.community.title }}</a>
+  {% else %}&raquo; <a href="{{ url_for('bb.community', name=pv.community|cref) }}">{{ pv.community.title }}</a>
+    &raquo; <a href="{{ url_for('bb.thread', post_id=pv.post.id) }}">{{ pv.post.title }}</a>{% endif %}
+</td></tr></table>
+
+{% if preview %}
+<table class="forumline" style="margin-bottom:8px">
+  <tr><th>Preview</th></tr>
+  <tr><td class="row1 postbody">
+    {% if topic_like %}<b>{{ form.title }}</b>{% if form.url %}<div class="linkbox">Link: {{ form.url }}</div>{% endif %}<hr>{% endif %}
+    {{ form.body|md }}</td></tr>
+</table>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">{{ m.csrf() }}
+{% if parent_id %}<input type="hidden" name="parent" value="{{ parent_id }}">{% endif %}
+<table class="forumline">
+  <tr><th colspan="2">{{ heading }}</th></tr>
+  {% if topic_like %}
+  <tr><td class="row1" width="22%"><b class="gen">Subject</b></td>
+      <td class="row2"><input type="text" name="title" maxlength="300" value="{{ form.title }}" required></td></tr>
+  <tr><td class="row1"><b class="gen">Link</b><br><span class="gensmall">optional URL, or a link to an image</span></td>
+      <td class="row2"><input type="url" name="url" value="{{ form.url }}"></td></tr>
+  {% else %}
+  <tr><td class="row1" width="22%"><b class="gen">Subject</b></td>
+      <td class="row2 gen">Re: {{ pv.post.title }}{% if parent_id %} <span class="gensmall muted">(reply to post #{{ parent_id }})</span>{% endif %}</td></tr>
+  {% endif %}
+  <tr><td class="row1" valign="top"><b class="gen">Message body</b><br>
+        <span class="gensmall">Markdown is supported:<br>**bold** *italic*<br>&gt; quote<br>[text](url)<br>`code`</span></td>
+      <td class="row2">{{ m.md_toolbar() }}<textarea name="body" rows="15">{{ form.body }}</textarea></td></tr>
+  <tr><td class="row1" valign="top"><b class="gen">Add an image</b><br>
+        <span class="gensmall">PNG, JPEG, GIF or WebP, max 10 MB</span></td>
+      <td class="row2 gen"><input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
+        <input type="submit" name="upload" value="Upload" formnovalidate></td></tr>
+  {% if topic_like %}
+  <tr><td class="row1"><b class="gen">Options</b></td>
+      <td class="row2 gen"><label><input type="checkbox" name="nsfw" value="1"{% if form.nsfw %} checked{% endif %}> Mark as NSFW</label></td></tr>
+  {% endif %}
+  <tr><td class="catBottom center" colspan="2">
+    <input type="submit" name="preview" value="Preview" formnovalidate> &nbsp; <input type="submit" value="Submit"></td></tr>
+</table>
+</form>
+{% endblock %}
