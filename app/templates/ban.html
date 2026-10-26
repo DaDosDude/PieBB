@@ -7,7 +7,7 @@
 <input type="hidden" name="community_id" value="{{ cv.community.id }}">
 <input type="hidden" name="user_id" value="{{ person.id }}">
 <input type="hidden" name="next" value="{{ next }}">
-<table class="forumline formtable" style="max-width:600px;margin:20px auto">
+<table class="forumline" style="max-width:600px;margin:20px auto">
   <tr><th colspan="2">Ban {{ person|pref }} from {{ cv.community.title }}</th></tr>
   <tr><td class="row1 gen" width="30%"><b>Reason</b></td><td class="row2"><input type="text" name="reason" maxlength="250" required placeholder="Required by PieFed"></td></tr>
   <tr><td class="row1 gen"><b>Length</b></td><td class="row2 gen">

@@ -23,7 +23,7 @@
 
 <form method="post" enctype="multipart/form-data">{{ m.csrf() }}
 {% if parent_id %}<input type="hidden" name="parent" value="{{ parent_id }}">{% endif %}
-<table class="forumline formtable">
+<table class="forumline">
   <tr><th colspan="2">{{ heading }}</th></tr>
   {% if topic_like %}
   <tr><td class="row1" width="22%"><b class="gen">Subject</b></td>
