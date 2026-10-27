@@ -237,20 +237,21 @@ def conversation(person_id):
         else:
             try:
                 piefed.post("/private_message", {"content": content[:10000], "recipient_id": person_id})
-                return redirect(url_for("bb.conversation", person_id=person_id) + "#bottom")
+                return redirect(url_for("bb.conversation", person_id=person_id))
             except piefed.SessionExpired:
                 raise
             except ApiError as e:
                 flash(e.message)
+    page = page_arg()
     try:
-        pms = piefed.get("/private_message/conversation", cache=False, person_id=person_id,
-                         limit=50).get("private_messages") or []
+        data = piefed.get("/private_message/conversation", cache=False, person_id=person_id, page=page, limit=50)
     except piefed.SessionExpired:
         raise
     except ApiError:
-        pms = []  # no conversation yet
-    pms.sort(key=lambda m: m["published"] or "")
-    unread_pms = [m for m in pms if not m["read"] and m["creator"]["id"] == person_id][-20:]
+        data = {}  # no conversation yet
+    pms = data.get("private_messages") or []
+    pms.sort(key=lambda m: m["published"] or "", reverse=True)  # newest on top, under the reply box
+    unread_pms = [m for m in pms if not m["read"] and m["creator"]["id"] == person_id][:20]
     for m in unread_pms:
         try:
             piefed.post("/private_message/mark_as_read", {"private_message_id": m["id"], "read": True})
@@ -260,7 +261,8 @@ def conversation(person_id):
             pass
     if unread_pms:
         piefed.forget_badge()
-    return render_template("conversation.html", other=other, pms=pms, draft=request.form.get("content", ""))
+    return render_template("conversation.html", other=other, pms=pms, draft=request.form.get("content", ""),
+                           page=page, has_next=len(pms) >= 50)  # PieFed's response has no next_page here
 
 
 # ---- unread topics -----------------------------------------------------------------

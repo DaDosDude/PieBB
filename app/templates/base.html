@@ -21,7 +21,7 @@
       <span class="gen">{{ (site.description or 'A PieFed community') }}</span>
       <div class="mainmenu">
         <a href="{{ url_for('bb.search') }}">Search</a>
-        <a href="{{ url_for('bb.index', view='topics') }}">Categories</a>
+        <a href="{{ url_for('bb.index') }}">Categories</a>
         <a href="{{ url_for('bb.index', view='flat') }}">Forum list</a>
         {% if me %}
           {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}"><b>Admin Panel</b></a>{% endif %}

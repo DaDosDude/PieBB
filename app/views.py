@@ -162,16 +162,12 @@ def api_error(e):
 
 @bp.route("/")
 def index():
-    view = request.args.get("view")
-    if view in ("topics", "flat"):
-        session["index_view"] = view
-    view = session.get("index_view") or settings.get("index_mode")
-
-    if view == "topics":
+    # the front page is always the categories; the flat forum list only on request
+    # (or when the instance has no topics or visible feeds)
+    if request.args.get("view") != "flat":
         cats = forums.build_index()
         if cats:
-            return render_template("index_topics.html", cats=cats, view=view)
-        view = "flat"  # instance has no topics or visible feeds
+            return render_template("index_topics.html", cats=cats)
 
     listing = request.args.get("type")
     if listing not in LISTINGS or (listing == "Subscribed" and not logged_in()):
@@ -184,7 +180,7 @@ def index():
                    for c in (data.get("communities") or [])
                    if (c.get("community") or {}).get("id") and c["community"]["id"] not in hidden]
     return render_template("index_flat.html", communities=communities, listing=listing,
-                           sort=sort, page=page, view=view)
+                           sort=sort, page=page)
 
 
 # ---- forums ---------------------------------------------------------------
@@ -583,6 +579,15 @@ def profile(username):
     data = piefed.get("/user", username=username, sort="New")
     return render_template("profile.html", pv=data.get("person_view") or {}, posts=(data.get("posts") or []),
                            comments=(data.get("comments") or []), moderates=(data.get("moderates") or []))
+
+
+@bp.route("/u/id/<int:person_id>")
+def profile_by_id(person_id):
+    """Profile link when only the account id is known (e.g. sign-up applications)."""
+    person = (piefed.get("/user", person_id=person_id).get("person_view") or {}).get("person") or {}
+    if not person.get("user_name"):
+        abort(404)
+    return redirect(url_for("bb.profile", username=render.person_ref(person)))
 
 
 @bp.route("/login", methods=["GET", "POST"])

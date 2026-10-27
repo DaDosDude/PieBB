@@ -188,3 +188,6 @@ button.notiflink { text-align: left; font-size: inherit; white-space: normal; }
 /* long words / URLs in titles and links break instead of widening the page */
 .maintitle, .topictitle, .forumlink, .cattitle, .linkbox, .quote, .lastpost a, .genmed, .nav { overflow-wrap: anywhere; }
 @media (max-width: 340px) { td.lastpost { min-width: 6.5em; } }
+.reganswer { white-space: pre-wrap; margin-bottom: 4px; }
+.pmdate { display: block; margin-top: 2px; }
+@media (max-width: 700px) { .postbit .pmdate { display: inline; margin-left: 8px; } }

@@ -332,6 +332,19 @@ def _pms(items):
     return [m for m in (private_message_view(x) for x in lst(items)) if m["id"] is not None]
 
 
+def registration(r):
+    r = d(r)
+    return {"user_id": i(r.get("user_id")), "user_name": s(r.get("user_name")) or "", "answer": s(r.get("answer")),
+            "email": s(r.get("email")), "ip_address": s(r.get("ip_address")), "country": s(r.get("country_code")),
+            "throwaway_email": b(r.get("throwaway_email")), "applied_at": s(r.get("applied_at")),
+            "status": s(r.get("status")) or "", "approved_by": person(r.get("approved_by")) if r.get("approved_by") else None,
+            "approved_at": s(r.get("approved_at"))}
+
+
+def _registrations(items):
+    return [x for x in (registration(r) for r in lst(items)) if x["user_id"] is not None]
+
+
 NORMALIZERS = {
     "/site": site,
     "/post": _resp(post_view=post_view, community_view=community_view, moderators=moderator_views),
@@ -355,6 +368,7 @@ NORMALIZERS = {
     "/post/delete": _resp(post_view=post_view),
     "/comment/delete": _resp(comment_view=comment_view),
     "/upload/image": _resp(url=s),
+    "/admin/registration_application/list": _resp(registrations=_registrations),
 }
 
 

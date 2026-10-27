@@ -11,7 +11,6 @@ _cache = {"mtime": None, "data": {}}
 
 DEFAULTS = {
     "forum_title": "",
-    "index_mode": "topics",
     "login_required": False,
     "theme": "subsilver",
     "custom_css": "",
@@ -32,7 +31,6 @@ def _env_defaults():
     cfg = current_app.config
     d = dict(DEFAULTS)
     d["forum_title"] = cfg["FORUM_TITLE"]
-    d["index_mode"] = cfg["INDEX_MODE"]
     d["login_required"] = cfg["LOGIN_REQUIRED"]
     return d
 
@@ -89,8 +87,6 @@ def _validated(data):
                         entry["hidden"] = v["hidden"]
                     layout[k] = entry
             out[key] = layout
-    if out.get("index_mode") not in (None, "topics", "flat"):
-        del out["index_mode"]
     return out
 
 

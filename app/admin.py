@@ -37,10 +37,8 @@ def dashboard():
 @admin_required
 def general():
     if request.method == "POST":
-        mode = request.form.get("index_mode")
         settings.update(
             forum_title=request.form.get("forum_title", "").strip(),
-            index_mode=mode if mode in ("topics", "flat") else "topics",
             login_required=bool(request.form.get("login_required")),
             feeds_position="before" if request.form.get("feeds_position") == "before" else "after",
             index_forum_limit=min(max(request.form.get("index_forum_limit", 3, type=int) or 0, 0), 100),
@@ -153,3 +151,44 @@ def resolve_report():
                                              "resolved": request.form.get("resolved") != "0"}, method="PUT")
     flash("Report updated.")
     return redirect(url_for("admin.moderation", show="reports"))
+
+
+REGISTRATIONS_PER_PAGE = 25
+
+
+@admin_bp.route("/registrations")
+@admin_required
+def registrations():
+    """Sign-up applications waiting for approval (PieFed instances with application-based registration)."""
+    pending = request.args.get("all") != "1"
+    page = page_arg()
+    error = None
+    try:
+        regs = piefed.get("/admin/registration_application/list", cache=False, pending_only=str(pending).lower(),
+                          sort="Old" if pending else "New", page=page,
+                          limit=REGISTRATIONS_PER_PAGE).get("registrations") or []
+    except piefed.SessionExpired:
+        raise
+    except piefed.ApiError as e:
+        regs, error = [], e.message
+    return render_template("admin/registrations.html", section="registrations", regs=regs, pending=pending,
+                           page=page, error=error, has_next=len(regs) >= REGISTRATIONS_PER_PAGE)
+
+
+@admin_bp.route("/registrations/decide", methods=["POST"])
+@admin_required
+def registration_decide():
+    user_id = request.form.get("user_id", type=int)
+    decision = request.form.get("decision")
+    if not user_id or decision not in ("approve", "deny"):
+        abort(400)
+    name = request.form.get("name", "")[:100] or f"#{user_id}"
+    try:
+        piefed.post("/admin/registration_application/approve", {"user_id": user_id, "approve": decision == "approve"},
+                    method="PUT")
+        flash(f"{name} approved." if decision == "approve" else f"{name}'s application was denied.")
+    except piefed.SessionExpired:
+        raise
+    except piefed.ApiError as e:
+        flash(e.message)
+    return redirect(url_for("admin.registrations"))

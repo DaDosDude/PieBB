@@ -52,7 +52,7 @@ Settings live in `.env` (see `.env.example`):
 | `PIEFED_URL` | Public URL of your PieFed instance (required) |
 | `SECRET_KEY` | Random secret for sessions and image-proxy signatures (required) |
 | `PIEFED_API_BASE` / `PIEFED_HOST_HEADER` | Reach PieFed directly (e.g. `http://127.0.0.1:8030`) instead of through the proxy |
-| `FORUM_TITLE`, `INDEX_MODE`, `TIMEZONE` | Defaults. Most of these can also be changed in the admin panel |
+| `FORUM_TITLE`, `TIMEZONE` | Defaults. Most of these can also be changed in the admin panel |
 | `LOGIN_REQUIRED` | `1` = guests only see the login page |
 | `IMAGE_PROXY` | `1` (default) = load remote images through PieBB |
 

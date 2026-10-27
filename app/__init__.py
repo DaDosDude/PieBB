@@ -42,7 +42,6 @@ def create_app():
         PIEFED_HOST_HEADER=env.get("PIEFED_HOST_HEADER", ""),
         PIEFED_TIMEOUT=float(env.get("PIEFED_TIMEOUT", "15")),
         FORUM_TITLE=env.get("FORUM_TITLE", ""),
-        INDEX_MODE=env.get("INDEX_MODE", "topics") if env.get("INDEX_MODE") in ("topics", "flat") else "topics",
         LOGIN_REQUIRED=_bool(env.get("LOGIN_REQUIRED", "0")),
         TIMEZONE=_timezone(env.get("TIMEZONE", "Europe/Amsterdam")),
         DATA_DIR=env.get("DATA_DIR", "/data"),

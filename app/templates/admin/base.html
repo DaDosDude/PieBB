@@ -8,6 +8,7 @@
   <tr><td class="catHead adminnav">
     {% for key, label, ep in [('dashboard','Overview','admin.dashboard'), ('settings','Settings','admin.general'),
                                ('themes','Themes','admin.theme_admin'), ('layout','Categories & Feeds','admin.layout'),
+                               ('registrations','Registrations','admin.registrations'),
                                ('moderation','Reports & Mod log','admin.moderation')] %}
       <a class="{{ 'on' if section == key }}" href="{{ url_for(ep) }}">{{ label }}</a>
     {% endfor %}

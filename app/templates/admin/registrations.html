@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+{% block admin %}
+<table width="100%"><tr>
+  <td class="gensmall">Accounts that signed up on PieFed and are waiting for an admin. Approving sends PieFed's approval email; denying deletes the application.</td>
+  <td class="right gensmall tabs nowrap">
+    <a class="{{ 'on' if pending }}" href="{{ url_for('admin.registrations') }}">Waiting</a>
+    <a class="{{ 'on' if not pending }}" href="{{ url_for('admin.registrations', all=1) }}">All</a>
+  </td>
+</tr></table>
+{% if error %}<div class="flash">PieFed refused the request: {{ error }}</div>{% endif %}
+<table class="forumline" style="margin-top:4px">
+  <tr><th>Applicant</th><th width="100%">Application</th><th>{{ 'Decision' if pending else 'Status' }}</th></tr>
+  {% for r in regs %}
+  <tr>
+    <td class="row1 gen nowrap" valign="top"><a href="{{ url_for('bb.profile_by_id', person_id=r.user_id) }}"><b>{{ r.user_name }}</b></a><br>
+      <span class="gensmall">{{ r.applied_at|bbdate }}</span></td>
+    <td class="row1 gen" valign="top">
+      <div class="reganswer">{% if r.answer %}{{ r.answer }}{% else %}<i class="muted">(no answer given)</i>{% endif %}</div>
+      <span class="gensmall">
+        {% if r.email %}Email: {{ r.email }}{% if r.throwaway_email %} <b style="color:#C00">disposable address</b>{% endif %}{% endif %}
+        {% if r.ip_address %} &middot; IP: {{ r.ip_address }}{% endif %}
+        {% if r.country %} &middot; {{ r.country }}{% endif %}
+      </span>
+    </td>
+    <td class="row2 center gen nowrap" valign="top">
+      {% if r.status != 'approved' %}
+      <form class="inline" method="post" action="{{ url_for('admin.registration_decide') }}">{{ m.csrf() }}
+        <input type="hidden" name="user_id" value="{{ r.user_id }}"><input type="hidden" name="name" value="{{ r.user_name }}">
+        <button class="btn main" name="decision" value="approve">Approve</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.registration_decide') }}"
+            onsubmit="return confirm({{ ('Deny ' ~ r.user_name ~ '? Their application will be deleted.')|tojson|forceescape }})">{{ m.csrf() }}
+        <input type="hidden" name="user_id" value="{{ r.user_id }}"><input type="hidden" name="name" value="{{ r.user_name }}">
+        <button class="btn" name="decision" value="deny">Deny</button></form>
+      {% else %}
+      <span class="gensmall">Approved{% if r.approved_at %}<br>{{ r.approved_at|bbdate }}{% endif %}{% if r.approved_by %}<br>by {{ r.approved_by|pname }}{% endif %}</span>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">{{ 'No applications waiting.' if pending else 'No applications.' }}</td></tr>
+  {% endfor %}
+</table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endblock %}

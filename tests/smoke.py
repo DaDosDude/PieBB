@@ -64,7 +64,7 @@ for path in ["/admin/", "/admin/settings", "/admin/themes", "/admin/layout", "/a
     check(f"admin GET {path}", r.status_code == 200, r.status_code)
 t = csrf(adm, "/admin/settings")
 
-r = adm.post(BASE + "/admin/settings", data={"csrf": t, "forum_title": "Test <b>Title</b>", "index_mode": "topics",
+r = adm.post(BASE + "/admin/settings", data={"csrf": t, "forum_title": "Test <b>Title</b>",
                                              "feeds_position": "after"})
 check("settings save", r.status_code == 200 and "Settings saved" in r.text, r.status_code)
 home = anon.get(BASE + "/").text

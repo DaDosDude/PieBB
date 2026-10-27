@@ -41,17 +41,14 @@
   var WRAP = {
     bold: ["**", "**", "bold text"], italic: ["*", "*", "italic text"], strike: ["~~", "~~", "struck text"],
     link: ["[", "](https://)", "link text"], image: ["![", "](https://)", "description"],
-    spoiler: ["\n::: spoiler Spoiler\n", "\n:::\n", "hidden text"]
+    spoiler: ["\n::: spoiler Spoiler\n", "\n:::\n", "hidden text"],
+    inline: ["`", "`", "code"], codeblock: ["\n```\n", "\n```\n", "code"]
   };
   var LINES = { quote: "> ", list: "- ", olist: "1. " };
 
   function apply(ta, kind) {
     var start = ta.selectionStart, end = ta.selectionEnd, v = ta.value, sel = v.slice(start, end), out, selFrom, selTo;
-    if (kind === "code") {
-      kind = sel.indexOf("\n") >= 0 ? "codeblock" : "inline";
-      WRAP.inline = ["`", "`", "code"];
-      WRAP.codeblock = ["\n```\n", "\n```\n", "code"];
-    }
+    if (kind === "code") kind = sel.indexOf("\n") >= 0 ? "codeblock" : "inline";
     if (LINES[kind]) {
       var lineStart = v.lastIndexOf("\n", start - 1) + 1;
       var block = v.slice(lineStart, end) || "text";

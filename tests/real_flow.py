@@ -139,6 +139,7 @@ inbox = victim.get(BB + "/messages").text
 check("recipient inbox lists the conversation", "plainuser" in inbox)
 conv = victim.get(BB + f"/messages/{PLAIN_ID}").text
 check("recipient reads the message", "hello from PieBB" in conv)
+check("conversation: reply box above the messages", conv.find("<textarea") < conv.find("hello from PieBB"))
 check("PM marked read after opening", "Messages (" not in victim.get(BB + "/").text)
 notes = user.get(BB + "/notifications?show=all")
 check("notifications page loads from real PieFed", notes.status_code == 200, notes.status_code)
@@ -200,7 +201,7 @@ r = admin.post(BB + f"/mod/post/{NEW}", data={"csrf": ta, "action": "remove", "r
 check("admin remove post reached PieFed", pf("/post", id=NEW)["post_view"]["post"]["removed"] is True, flashes(r))
 admin.post(BB + f"/mod/post/{NEW}", data={"csrf": ta, "action": "restore"}, headers={"Referer": BB + f"/p/{NEW}"})
 check("admin restore post reached PieFed", pf("/post", id=NEW)["post_view"]["post"]["removed"] is False)
-r = admin.post(BB + "/admin/settings", data={"csrf": ta, "forum_title": "Real Test Forum", "index_mode": "topics",
+r = admin.post(BB + "/admin/settings", data={"csrf": ta, "forum_title": "Real Test Forum",
                                             "feeds_position": "before"})
 check("admin settings saved", "Real Test Forum" in requests.get(BB + "/").text)
 lay = admin.get(BB + "/admin/layout").text
@@ -276,6 +277,26 @@ check("bare image link shows the (proxied) image", re.search(r'<a href="https://
       is not None)
 r = user.post(BB + "/p/1/reply", data={"csrf": tq, "preview": "1", "body": "javascript:alert(1) data:text/html,x"})
 check("non-http text is not linkified", "href=\"javascript" not in r.text and "href=\"data" not in r.text)
+
+# ---------------- registration applications (admin)
+rg = admin.get(BB + "/admin/registrations").text
+check("registrations: pending applications listed", "newbie1" in rg and "newbie2" in rg and "&lt;b&gt;spam" in rg)
+ids = {n: i for i, n in re.findall(r'name="user_id" value="(\d+)"><input type="hidden" name="name" value="(\w+)"', rg)}
+tr = csrf(admin, "/admin/registrations")
+if "newbie1" in ids and "newbie2" in ids:
+    admin.post(BB + "/admin/registrations/decide", data={"csrf": tr, "user_id": ids["newbie1"], "decision": "approve"})
+    admin.post(BB + "/admin/registrations/decide", data={"csrf": tr, "user_id": ids["newbie2"], "decision": "deny"})
+    check("registrations: approved user can log in",
+          "jwt" in requests.post(PF + "/user/login", json={"username": "newbie1", "password": "password123"}).text)
+    check("registrations: denied application removed", "newbie2" not in admin.get(BB + "/admin/registrations?all=1").text)
+tu = csrf(user, "/")
+check("registrations: non-admins refused", user.get(BB + "/admin/registrations").status_code == 403
+      and user.post(BB + "/admin/registrations/decide", data={"csrf": tu, "user_id": 1, "decision": "approve"}).status_code == 403)
+
+# ---------------- front page is always the categories
+g = requests.Session()
+g.get(BB + "/?view=flat")
+check("front page stays categories after visiting the forum list", 'class="catLeft"' in g.get(BB + "/").text)
 
 # ---------------- logout revokes the PieFed token
 tok_before = admin.cookies.get("piebb")
