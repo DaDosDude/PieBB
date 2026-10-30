@@ -9,7 +9,7 @@ import requests
 from cachetools import TTLCache
 from flask import current_app, request, session
 
-from . import schema
+from . import schema, sharedcache
 
 
 class ApiError(Exception):
@@ -123,7 +123,7 @@ def forget_session():
         _badge_cache.pop(h, None)
 
 
-def get(path, cache=True, **params):
+def get(path, cache=True, timeout=None, **params):
     params = _clean(params)
     url = current_app.config["PIEFED_API_URL"] + path
     key = None
@@ -137,7 +137,7 @@ def get(path, cache=True, **params):
             return copy.deepcopy(hit)
     try:
         r = requests.get(url, params=params, headers=_headers(),
-                         timeout=current_app.config["PIEFED_TIMEOUT"])
+                         timeout=timeout or current_app.config["PIEFED_TIMEOUT"])
     except requests.RequestException as e:
         raise ApiError(502, f"Could not reach PieFed: {e.__class__.__name__}")
     data = schema.normalize(path, _handle(r))
@@ -210,8 +210,37 @@ def _flatten(items, parent_id, out, depth=0):
         _flatten(_first(t, _CHILD_KEYS) or _first(inner, _CHILD_KEYS), tid, out, depth + 1)
 
 
+TREE_TTL = 600  # topic/feed lists change rarely; refreshed in the background once this old
+
+
 def _tree(path, key):
-    data = get(path)
+    """Topic/feed tree from PieFed via the shared cache: visitors always get the last known copy at
+    once and a stale copy is refreshed in the background. Only a cold cache (first ever start)
+    waits for PieFed."""
+    ckey = "tree:" + path
+    anon_get = _anon_getter(current_app.config["PIEFED_TIMEOUT"])
+
+    def fetch():
+        try:
+            data = anon_get(path, {})
+        except (requests.RequestException, ValueError):
+            return None
+        return _build_tree(data, key) if data is not None else None
+
+    tree, age = sharedcache.get(ckey)
+    if tree is not None:
+        if age > TREE_TTL:
+            # an empty answer while we have a list is more likely a PieFed hiccup than reality
+            sharedcache.refresh_later(ckey, lambda: (fetch() or None) if tree else fetch())
+        return copy.deepcopy(tree)
+    tree = fetch()
+    if tree is None:
+        raise ApiError(502, "PieFed did not answer with its topic list. Try again in a moment.")
+    sharedcache.put(ckey, tree)
+    return copy.deepcopy(tree)
+
+
+def _build_tree(data, key):
     if isinstance(data, list):
         raw = data
     elif isinstance(data, dict):
@@ -268,48 +297,67 @@ def upload_image(stream, filename, mimetype):
 
 # ---- shared community stats (no user session, safe to use from worker threads) ----
 
-_stats_cache = TTLCache(maxsize=4096, ttl=600)  # counts per community
-_last_cache = TTLCache(maxsize=4096, ttl=300)  # newest activity per community (index "Last Post")
+COUNTS_TTL = 600  # seconds before a community's topic/post/member counts are refreshed
+LAST_TTL = 300    # seconds before its Last Post is refreshed
 _stats_lock = threading.Lock()
+_failed = TTLCache(maxsize=8192, ttl=600)  # (kind, community id) lookups that failed or timed out
 
 
 def _batch(jobs, ids, budget):
-    """jobs = [(cache, fetch)]. Returns one {id: value} dict per job, taking cached values and
-    fetching the missing ones for all jobs in one parallel pool within `budget` seconds.
-    Lookups that don't finish in time are simply left out (a later page load fills them in)."""
+    """jobs = [(kind, ttl, fetch)]. Returns one {id: value} dict per job from the shared cache.
+    Known values are returned at once, even when stale (those are refreshed in the background).
+    Only communities never seen before are fetched while the page waits, in parallel and for at
+    most `budget` seconds; lookups still running then finish in the background. Lookups that fail
+    or hit their own timeout are skipped for 10 minutes."""
     outs, tasks = [], []
-    for n, (cache, fetch) in enumerate(jobs):
+    for n, (kind, ttl, fetch) in enumerate(jobs):
         out = {}
-        with _stats_lock:
-            for cid in dict.fromkeys(ids):
-                if cid is None:
-                    continue
-                hit = cache.get(cid)
-                if hit is not None:
-                    out[cid] = hit
-                else:
-                    tasks.append((n, cid))
+        for cid in dict.fromkeys(ids):
+            if cid is None:
+                continue
+            value, age = sharedcache.get(f"{kind}:{cid}")
+            with _stats_lock:
+                failed = (kind, cid) in _failed
+            if value is not None:
+                out[cid] = value
+                if age > ttl and not failed:
+                    sharedcache.refresh_later(f"{kind}:{cid}", _remembering(kind, cid, fetch))
+            elif not failed:
+                tasks.append((n, cid))
         outs.append(out)
     if not tasks:
         return outs
 
     def run(n, cid):
-        try:
-            return n, cid, jobs[n][1](cid)
-        except Exception:  # a broken answer for one community must never break the index
-            return n, cid, None
+        kind, _, fetch = jobs[n]
+        value = _remembering(kind, cid, fetch)()
+        if value is not None:
+            sharedcache.put(f"{kind}:{cid}", value)
+        return n, cid, value
 
-    pool = ThreadPoolExecutor(max_workers=6)
+    pool = ThreadPoolExecutor(max_workers=8)
     futures = [pool.submit(run, n, cid) for n, cid in tasks]
     done, _ = wait(futures, timeout=budget)
-    pool.shutdown(wait=False, cancel_futures=True)
+    pool.shutdown(wait=False, cancel_futures=True)  # not-started lookups wait for a later page load
     for f in done:
         n, cid, value = f.result()
         if value is not None:
             outs[n][cid] = value
-            with _stats_lock:
-                jobs[n][0][cid] = value
     return outs
+
+
+def _remembering(kind, cid, fetch):
+    """fetch(cid) that never raises and remembers a failure (None) so it's skipped for a while."""
+    def call():
+        try:
+            value = fetch(cid)
+        except Exception:  # a broken answer for one community must never break the index
+            value = None
+        if value is None:
+            with _stats_lock:
+                _failed[(kind, cid)] = True
+        return value
+    return call
 
 
 def _anon_getter(budget):
@@ -361,13 +409,13 @@ def _last_fetch(anon_get):
 
 
 def community_counts(community_ids, budget=2.5):
-    """{community_id: counts}. Anonymous /community lookups, cached 10 minutes, shared by all visitors."""
-    return _batch([(_stats_cache, _counts_fetch(_anon_getter(budget)))], community_ids, budget)[0]
+    """{community_id: counts}. Anonymous /community lookups, shared by all visitors."""
+    return _batch([("counts", COUNTS_TTL, _counts_fetch(_anon_getter(budget)))], community_ids, budget)[0]
 
 
 def community_stats(community_ids, budget=2.5):
     """(counts, last posts) for the index in one parallel round. Last post = the community's most
-    recently active topic (PieFed's sort=Active, bumped by replies), cached 5 minutes."""
+    recently active topic (PieFed's sort=Active, bumped by replies)."""
     anon_get = _anon_getter(budget)
-    return tuple(_batch([(_stats_cache, _counts_fetch(anon_get)), (_last_cache, _last_fetch(anon_get))],
+    return tuple(_batch([("counts", COUNTS_TTL, _counts_fetch(anon_get)), ("last", LAST_TTL, _last_fetch(anon_get))],
                         community_ids, budget))

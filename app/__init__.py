@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import Flask, Response, abort, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import imgproxy, render
+from . import imgproxy, render, sharedcache
 
 
 def _bool(v):
@@ -55,6 +55,7 @@ def create_app():
         SESSION_COOKIE_SAMESITE="Lax",
         PERMANENT_SESSION_LIFETIME=timedelta(days=30),
     )
+    sharedcache.configure(app.config["DATA_DIR"])
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     app.jinja_env.filters.update(

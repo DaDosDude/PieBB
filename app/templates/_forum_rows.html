@@ -29,7 +29,7 @@
   <td class="row2 center gensmall nowrap lastpost">{% if r.last %}{{ r.last.time|bbdate }}<br>
     <a href="{{ url_for('bb.thread', post_id=r.last.id) }}" title="{{ r.last.title }}">{{ r.last.title|truncate(28, True) }}</a>
     <a href="{{ url_for('bb.thread', post_id=r.last.id, page='last') }}" title="View latest post">&raquo;</a>
-  {% elif r.kind == 'community' and r.counts %}<span class="muted">No posts</span>{% endif %}</td>
+  {% elif r.kind == 'community' and r.counts and not r.counts.post_count %}<span class="muted">No posts</span>{% endif %}</td>
 {% endmacro %}
 {% macro more_line(r, nested) %}
   <tr><td class="row1 morerow{{ ' nested' if nested }}" colspan="6">
