@@ -54,6 +54,7 @@ Settings live in `.env` (see `.env.example`):
 | `PIEFED_API_BASE` / `PIEFED_HOST_HEADER` | Reach PieFed directly (e.g. `http://127.0.0.1:8030`) instead of through the proxy |
 | `FORUM_TITLE`, `TIMEZONE` | Defaults. Most of these can also be changed in the admin panel |
 | `LOGIN_REQUIRED` | `1` = guests only see the login page |
+| `GUEST_RATE_LIMIT` | Page loads per minute per IP for guests (default `60`, `0` = off) |
 | `IMAGE_PROXY` | `1` (default) = load remote images through PieBB |
 
 Admin settings and uploaded themes are stored in the `piebb-data` volume.

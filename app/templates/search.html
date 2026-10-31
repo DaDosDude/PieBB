@@ -23,7 +23,7 @@
   {% for c in res.comments or [] %}
   <tr><td class="row2 gensmall" width="25%" valign="top"><a href="{{ url_for('bb.comment_link', comment_id=c.comment.id) }}">Re: {{ c.post.title|truncate(50, True) }}</a><br>
       by {{ c.creator|pname }}<br>{{ c.comment.published|bbdate }}</td>
-    <td class="row1 postbody">{{ c.comment.body|truncate(400, True)|md }}</td></tr>
+    <td class="row1 postbody">{{ c.comment.body|plain|truncate(400, True) }}</td></tr>
   {% else %}<tr><td class="row1 center gen" colspan="2">No posts found.</td></tr>{% endfor %}</table>
 {% elif stype == 'Communities' %}
 <table class="forumline"><tr><th colspan="2">&nbsp;Forum&nbsp;</th><th>&nbsp;Topics&nbsp;</th><th class="hide-sm">&nbsp;Posts&nbsp;</th><th class="hide-sm">&nbsp;Members&nbsp;</th></tr>

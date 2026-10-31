@@ -23,5 +23,5 @@
   <tr><td class="row1 center gen" colspan="5">No forums here.{% if listing == 'Subscribed' %} Try <a href="{{ url_for('bb.index', view='flat', type='Local') }}">Local</a>.{% endif %}</td></tr>
   {% endfor %}
 </table>
-<table width="100%"><tr><td class="right">{{ m.pagination(page, communities|length >= 50) }}</td></tr></table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
 {% endblock %}

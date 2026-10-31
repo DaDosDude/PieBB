@@ -43,10 +43,25 @@ def proxied(url):
         return ""
     if not current_app.config.get("IMAGE_PROXY"):
         return url
-    host = (urlsplit(url).hostname or "").lower()
-    if host in current_app.config["IMAGE_PROXY_SKIP_HOSTS"]:
-        return url  # served by our own PieFed: no third party to hide from
+    if origin(url) in current_app.config["IMAGE_DIRECT_ORIGINS"]:
+        return url  # served by our own PieFed: no third party to hide from (and allowed by the CSP)
     return f"/img?u={quote(url, safe='')}&s={_sign(url)}"
+
+
+def origin(url):
+    """scheme://host[:port] as a CSP source matches it (default ports left out), or "" if unparseable."""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return ""
+    host = (parts.hostname or "").lower()
+    if parts.scheme not in ("http", "https") or not host:
+        return ""
+    if ":" in host:
+        host = f"[{host}]"
+    default = 443 if parts.scheme == "https" else 80
+    return f"{parts.scheme}://{host}" + (f":{port}" if port and port != default else "")
 
 
 class Blocked(Exception):
@@ -122,7 +137,7 @@ def _fetch(url):
         if ctype not in ALLOWED_TYPES:
             raise Blocked(415)
         length = resp.headers.get("Content-Length")
-        if length and length.isdigit() and int(length) > MAX_BYTES:
+        if length and length.isdecimal() and int(length) > MAX_BYTES:
             raise Blocked(413)
         body = bytearray()
         deadline = time.monotonic() + TOTAL_SECONDS
@@ -149,6 +164,8 @@ def image():
         return _fail(e.args[0] if e.args and isinstance(e.args[0], int) else 403)
     except (urllib3.exceptions.HTTPError, OSError):
         return _fail(502)
+    except ValueError:  # malformed address in the post (e.g. a port like :99999)
+        return _fail(400)
     return Response(body, mimetype=ctype, headers={
         "Cache-Control": "public, max-age=86400, immutable",
         "Content-Security-Policy": "default-src 'none'; sandbox",

@@ -3,6 +3,7 @@
 Every field the frontend reads is given a guaranteed type here (missing, null or wrong-typed
 values become a safe default), so a malformed or partial response can't crash a page.
 """
+import math
 from datetime import datetime, timezone
 
 
@@ -22,9 +23,12 @@ def i(v, default=None):
     if isinstance(v, int):
         return v
     if isinstance(v, float):
-        return int(v)
-    if isinstance(v, str) and v.strip().lstrip("-").isdigit():
-        return int(v)
+        return int(v) if math.isfinite(v) else default  # JSON may carry NaN/Infinity
+    if isinstance(v, str):
+        try:
+            return int(v.strip(), 10)  # "--5" or "²" pass isdigit() checks but aren't numbers
+        except ValueError:
+            return default
     return default
 
 
@@ -86,7 +90,10 @@ def poll(v):
     closed = False
     if end:
         try:
-            closed = datetime.fromisoformat(end.replace("Z", "+00:00")) < datetime.now(timezone.utc)
+            when = datetime.fromisoformat(end.replace("Z", "+00:00"))
+            if when.tzinfo is None:  # no timezone given: PieFed's times are UTC
+                when = when.replace(tzinfo=timezone.utc)
+            closed = when < datetime.now(timezone.utc)
         except ValueError:
             pass
     return {"mode": "multiple" if v.get("mode") == "multiple" else "single", "end": end, "closed": closed,

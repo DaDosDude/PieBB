@@ -76,7 +76,7 @@
     <td class="row2 gensmall hide-sm">
       {% if e.post and e.post.id %}<a href="{{ url_for('bb.thread', post_id=e.post.id) }}">{{ e.post.title|truncate(60, True) }}</a>{% endif %}
       {% if e.comment and e.comment.id %}<br><a href="{{ url_for('bb.comment_link', comment_id=e.comment.id) }}">post #{{ e.comment.id }}</a>{% endif %}
-      {% if e.person %}<a href="{{ url_for('bb.profile', username=e.person|pref) }}">{{ e.person|pname }}</a>{% endif %}
+      {% if e.person %}{% if e.post and e.post.id %}<br>by {% endif %}<a href="{{ url_for('bb.profile', username=e.person|pref) }}">{{ e.person|pname }}</a>{% endif %}
       {% if e.community and e.community.id %}<br>in <a href="{{ url_for('bb.community', name=e.community|cref) }}">{{ e.community.title }}</a>{% endif %}
     </td>
     <td class="row1 gensmall hide-sm">{{ e.reason or '' }}</td>

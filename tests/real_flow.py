@@ -298,6 +298,53 @@ g = requests.Session()
 g.get(BB + "/?view=flat")
 check("front page stays categories after visiting the forum list", 'class="catLeft"' in g.get(BB + "/").text)
 
+# ---------------- scraper protection
+codes = [requests.get(BB + "/c/retrogaming", headers={"X-Forwarded-For": "198.51.100.9"}).status_code for _ in range(70)]
+check("guest rate limit: fast guest gets 429 after ~60", codes.count(429) >= 5 and codes[:40].count(200) == 40, codes.count(429))
+rs = [requests.get(BB + "/c/retrogaming", headers={"X-Forwarded-For": "198.51.100.9"}) for _ in range(6)]
+check("guest rate limit: 429 page says how long to wait",
+      any(r.status_code == 429 and r.headers.get("Retry-After") for r in rs))
+check("guest rate limit: other guests unaffected",
+      requests.get(BB + "/c/retrogaming", headers={"X-Forwarded-For": "198.51.100.10"}).status_code == 200)
+check("guest rate limit: IPv6 /64 counts as one",
+      [requests.get(BB + "/", headers={"X-Forwarded-For": f"2001:db8:1:2::{i:x}"}).status_code for i in range(70)].count(429) >= 5)
+check("guest rate limit: logged-in members never limited",
+      all(user.get(BB + "/c/retrogaming", headers={"X-Forwarded-For": "198.51.100.9"}).status_code == 200 for _ in range(5)))
+rb = requests.get(BB + "/robots.txt", headers={"X-Forwarded-For": "198.51.100.9"})
+check("robots.txt served (even when rate-limited)", rb.status_code == 200 and "Disallow: /search" in rb.text)
+
+# ---------------- odd numbers in forms, failed login keeps its target, spoilers stay hidden in quotes
+r = user.post(BB + "/mark_read", data={"csrf": csrf(user), "post_id": ["\u00b2", "--5", str(NEW)]})
+check("mark read ignores non-numbers", r.status_code == 200, r.status_code)
+r = admin.post(BB + "/admin/layout", data={"csrf": csrf(admin, "/admin/layout"), "order:group:topics": "\u00b2"})
+check("layout order ignores non-numbers", r.status_code == 200, r.status_code)
+admin.post(BB + "/admin/layout/reset", data={"csrf": csrf(admin, "/admin/layout")})
+g = requests.Session()
+r = g.post(BB + "/login", data={"csrf": csrf(g, "/login"), "username": "nobody", "password": "x", "next": "/unread"})
+check("failed login keeps where to go next", 'name="next" value="/unread"' in r.text)
+t = csrf(user, f"/p/{NEW}")
+r = user.post(BB + f"/p/{NEW}/reply", data={"csrf": t, "body": "open\n\n::: spoiler s\nSECRETWORD ![](https://example.com/secret.png)\n:::"})
+sc = re.search(r"#c(\d+)", r.url)
+q = user.get(BB + f"/p/{NEW}/reply?parent={sc.group(1)}&quote=1").text if sc else ""
+check("quoting a spoiler keeps it hidden", sc and "SECRETWORD" not in q and "[spoiler]" in q)
+user.post(BB + f"/p/{NEW}/reply", data={"csrf": t, "body": "answer", "parent": sc.group(1) if sc else ""})
+th = user.get(BB + f"/p/{NEW}?page=last").text
+quotes = re.findall(r'<div class="quote">(.*?)</div>\s*(?:<div class="replyto|<div class="postbody)', th, re.S)
+check("quote box hides spoiler text and images", quotes and not any("SECRETWORD" in x or "secret.png" in x for x in quotes),
+      len(quotes))
+
+for u in ("/c/doesnotexist", "/comment/99999999", "/u/id/99999999"):
+    r = requests.get(BB + u)
+    check(f"missing {u} is a clean 404", r.status_code == 404 and "NoneType" not in r.text, r.status_code)
+
+r = user.post(BB + "/follow/99999999", data={"csrf": csrf(user)})
+check("PieFed internal errors aren't shown", "psycopg" not in r.text and "SQL" not in r.text, r.status_code)
+
+pr = requests.get(BB + "/u/plainuser").text
+check("profile lists the account's topics and posts", 'class="topictitle"' in pr and 'href="/comment/' in pr)
+check("profile past the last page goes to the last page",
+      requests.get(BB + "/u/plainuser?page=9999", allow_redirects=False).status_code == 302)
+
 # ---------------- logout revokes the PieFed token
 tok_before = admin.cookies.get("piebb")
 admin.post(BB + "/logout", data={"csrf": csrf(admin)})

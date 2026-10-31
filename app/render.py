@@ -78,12 +78,17 @@ def _absolute_urls_only(tag, attr, value):
 _IMG_SRC = re.compile(r'<img\b[^>]*?\ssrc="([^"]+)"', re.I)
 
 
+def hide_spoilers(text):
+    """Markdown with each spoiler block replaced by "[spoiler]" (a quoted spoiler can't stay hidden)."""
+    return _SPOILER.sub("\n[spoiler]\n", (text or "").replace("\r\n", "\n"))
+
+
 def quote_parts(text, max_images=4):
     """(plain text, image srcs) for quoting a comment: its text without "[image]" markers, plus the
     (already proxied) addresses of its first few images, shown as thumbnails in the quote."""
     if not text:
         return "", []
-    srcs = [html_unescape(u) for u in _IMG_SRC.findall(str(markdown(text)))][:max_images]
+    srcs = [html_unescape(u) for u in _IMG_SRC.findall(str(markdown(hide_spoilers(text))))][:max_images]
     return " ".join(plain(text).replace("[image]", " ").split()), srcs
 
 
@@ -112,10 +117,11 @@ _IMG_TAG = re.compile(r"<img\b[^>]*>", re.I)
 
 
 def plain(text):
-    """Markdown -> one line of plain text, for descriptions and quotes (images become "[image]")."""
+    """Markdown -> one line of plain text, for descriptions and quotes (images become "[image]",
+    spoilers "[spoiler]", so a quote never gives away what a spoiler hides)."""
     if not text:
         return ""
-    html = _IMG_TAG.sub(" [image] ", _md.render(text.replace("\r\n", "\n")))
+    html = _IMG_TAG.sub(" [image] ", _md.render(hide_spoilers(text)))
     return " ".join(nh3.clean(html, tags=set()).split())
 
 

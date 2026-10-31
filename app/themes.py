@@ -101,7 +101,7 @@ def import_phpbb2(fileobj, filename):
 
     # The style root is the directory holding theme_info.cfg
     roots = [n.rsplit("/", 1)[0] if "/" in n else "" for _, n in members
-             if n.lower().endswith("theme_info.cfg")]
+             if n.lower().rsplit("/", 1)[-1] == "theme_info.cfg"]
     if not roots:
         raise ValueError("No theme_info.cfg found: this does not look like a phpBB2 style.")
     root = roots[0]
@@ -161,6 +161,7 @@ def import_phpbb2(fileobj, filename):
 
 
 def delete(slug):
+    slug = slug if isinstance(slug, str) else ""
     if slug in BUILTIN or not re.fullmatch(r"[a-z0-9_-]+", slug):
         raise ValueError("Built-in themes cannot be deleted.")
     shutil.rmtree(os.path.join(themes_dir(), slug), ignore_errors=True)
@@ -172,7 +173,7 @@ def _col(v, default):
 
 
 def _px(v, default):
-    return f"{int(v)}px" if (v or "").strip().isdigit() else default
+    return f"{int(v)}px" if (v or "").strip().isdecimal() else default
 
 
 def _img(v):

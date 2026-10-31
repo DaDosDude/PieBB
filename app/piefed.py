@@ -10,6 +10,7 @@ from cachetools import TTLCache
 from flask import current_app, request, session
 
 from . import schema, sharedcache
+from .version import VERSION
 
 
 class ApiError(Exception):
@@ -36,7 +37,7 @@ def _headers():
     cfg = current_app.config
     h = {
         "Accept": "application/json",
-        "User-Agent": "PieBB/1.0",
+        "User-Agent": f"PieBB/{VERSION}",
         "X-Forwarded-For": _client_ip(),
         "X-Forwarded-Proto": "https",
     }
@@ -52,6 +53,9 @@ def _clean(params):
     return {k: v for k, v in (params or {}).items() if v is not None and v != ""}
 
 
+_INTERNAL_ERRORS = ("psycopg", "sqlalchemy", "sqlalche.me", "[sql:", "traceback", "object has no attribute")
+
+
 def _handle(r):
     try:
         data = r.json()
@@ -61,10 +65,19 @@ def _handle(r):
         err = data if isinstance(data, dict) else {}
         msg = schema.s(err.get("message")) or schema.s(err.get("error")) or ""
         status = schema.s(err.get("status")) or ""
-        if status.lower() == "not found":  # PieFed: {"message": "()", "status": "Not found"}
-            raise ApiError(404, "That doesn't exist (anymore): it may have been deleted.")
+        gone = "That doesn't exist (anymore): it may have been deleted."
+        if status.lower() == "not found" or (r.status_code == 404 and not msg.strip("() ")):
+            raise ApiError(404, gone)  # PieFed: {"message": "()", "status": "Not found"}, or a bare 404 page
+        # PieFed answers 400 for a lookup of something that doesn't exist ("unknown community",
+        # "user not found", or a Python error about a missing object): a 404 with a clear message
+        lowered = msg.lower()
+        if r.status_code == 400 and ("nonetype" in lowered or "not found" in lowered or "unknown " in lowered):
+            raise ApiError(404 if r.request.method == "GET" else 400, gone)
         if not msg.strip("() "):
             msg = status or f"HTTP {r.status_code}"
+        elif any(x in lowered for x in _INTERNAL_ERRORS):  # a database error or traceback text: not for visitors
+            msg = "PieFed could not do that (it reported an internal error)."
+        msg = msg[:300]
         auth_failed = r.status_code == 401 or msg.startswith(("incorrect_login", "incorrect login"))
         if auth_failed and session.get("jwt"):
             session.clear()
@@ -211,6 +224,7 @@ def _flatten(items, parent_id, out, depth=0):
 
 
 TREE_TTL = 600  # topic/feed lists change rarely; refreshed in the background once this old
+_tree_failed = {}  # path -> time a cold fetch failed; retried after a minute instead of on every load
 
 
 def _tree(path, key):
@@ -233,9 +247,13 @@ def _tree(path, key):
             # an empty answer while we have a list is more likely a PieFed hiccup than reality
             sharedcache.refresh_later(ckey, lambda: (fetch() or None) if tree else fetch())
         return copy.deepcopy(tree)
+    if time.time() - _tree_failed.get(path, 0) < 60:
+        raise ApiError(502, "PieFed did not answer with its topic list. Try again in a moment.")
     tree = fetch()
     if tree is None:
+        _tree_failed[path] = time.time()
         raise ApiError(502, "PieFed did not answer with its topic list. Try again in a moment.")
+    _tree_failed.pop(path, None)
     sharedcache.put(ckey, tree)
     return copy.deepcopy(tree)
 
@@ -365,7 +383,7 @@ def _anon_getter(budget):
     here, in the request, because the lookups run in worker threads without an app context."""
     base = current_app.config["PIEFED_API_URL"]
     timeout = min(current_app.config["PIEFED_TIMEOUT"], budget)
-    headers = {"Accept": "application/json", "User-Agent": "PieBB/1.0"}
+    headers = {"Accept": "application/json", "User-Agent": f"PieBB/{VERSION}"}
     if current_app.config["PIEFED_HOST_HEADER"]:
         headers["Host"] = current_app.config["PIEFED_HOST_HEADER"]
 

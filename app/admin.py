@@ -101,9 +101,10 @@ def layout():
             name = request.form.get(f"name:{key}", "").strip()
             if name and name != orig.get(key):
                 entry["name"] = name
-            order = request.form.get(f"order:{key}", "").strip()
-            if order.lstrip("-").isdigit():
-                entry["order"] = int(order)
+            try:
+                entry["order"] = int(request.form.get(f"order:{key}", "").strip(), 10)
+            except ValueError:  # empty or not a number: keep the default order
+                pass
             entry["hidden"] = not request.form.get(f"show:{key}")
             new[key] = entry
         # keep entries for items not currently listed (e.g. communities hidden from the flat list)

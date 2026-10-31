@@ -8,12 +8,14 @@ from werkzeug.exceptions import HTTPException
 
 from . import forums, piefed, render, settings, themes
 from .piefed import ApiError
+from .version import VERSION
 
 bp = Blueprint("bb", __name__)
 
 PER_PAGE = 25
 COMMENTS_PER_PAGE = 50
 MAX_PAGE = 10000
+PROFILE_PER_PAGE = 20
 TOPIC_SORT = "New"  # phpBB-style: topic lists always show the newest topics first
 LISTINGS = ("Subscribed", "Local", "All")
 SEARCH_TYPES = ("Posts", "Comments", "Communities", "Users")
@@ -34,7 +36,7 @@ def check_csrf():
         if not expected or not secrets.compare_digest(sent, expected):
             abort(400, "Form expired, go back and try again.")
     if settings.get("login_required") and not session.get("jwt") \
-            and request.endpoint not in ("bb.login", "static", "theme_file", "custom_css"):
+            and request.endpoint not in ("bb.login", "static", "theme_file", "custom_css", "guard.robots", "img.image"):
         return redirect(url_for("bb.login", next=request.full_path))
 
 
@@ -135,7 +137,8 @@ def inject():
             "can_mod": lambda cid: is_admin or cid in mods,
             "csrf_token": csrf_token, "logged_in": logged_in(), "theme": themes.current(),
             "forum_title": settings.get("forum_title") or (s.get("site") or {}).get("name") or "PieFed",
-            "piefed_url": current_app.config["PIEFED_PUBLIC_URL"], "comments_per_page": COMMENTS_PER_PAGE}
+            "piefed_url": current_app.config["PIEFED_PUBLIC_URL"], "comments_per_page": COMMENTS_PER_PAGE,
+            "piebb_version": VERSION}
 
 
 @bp.app_errorhandler(HTTPException)
@@ -179,8 +182,8 @@ def index():
     communities = [dict(c, community=_renamed_community(c["community"]))
                    for c in (data.get("communities") or [])
                    if (c.get("community") or {}).get("id") and c["community"]["id"] not in hidden]
-    return render_template("index_flat.html", communities=communities, listing=listing,
-                           sort=sort, page=page)
+    return render_template("index_flat.html", communities=communities, listing=listing, sort=sort, page=page,
+                           has_next=len(data.get("communities") or []) >= 50)  # counted before hiding any
 
 
 # ---- forums ---------------------------------------------------------------
@@ -457,7 +460,8 @@ def reply(post_id):
             who, text = render.person_name(src.get("creator")), (src.get("comment") or {}).get("body")
         else:
             who, text = render.person_name(pv.get("creator")), pv["post"].get("body") or pv["post"].get("title")
-        body = f"**{who}** wrote:\n" + "\n".join("> " + line for line in (text or "").splitlines()) + "\n\n"
+        lines = render.hide_spoilers(text).strip("\n").splitlines()
+        body = f"**{who}** wrote:\n" + "\n".join("> " + line for line in lines) + "\n\n"
     if request.method == "POST":
         if request.form.get("upload"):
             return render_template("posting.html", mode="reply", pv=pv, parent_id=parent_id,
@@ -553,7 +557,7 @@ def ban():
     if not (cv.get("community") or {}).get("id") or not person.get("id"):
         abort(404)
     if request.method == "POST":
-        days = request.form.get("days", type=int, default=0)
+        days = min(max(request.form.get("days", type=int, default=0) or 0, 0), 3650)  # 0 = permanent
         if request.form.get("unban"):
             piefed.post("/community/moderate/unban", {"community_id": community_id, "user_id": user_id},
                         method="PUT")
@@ -576,9 +580,19 @@ def ban():
 
 @bp.route("/u/<path:username>")
 def profile(username):
-    data = piefed.get("/user", username=username, sort="New")
-    return render_template("profile.html", pv=data.get("person_view") or {}, posts=(data.get("posts") or []),
-                           comments=(data.get("comments") or []), moderates=(data.get("moderates") or []))
+    page = page_arg()
+    # include_content: without it PieFed leaves the account's topics and replies out
+    data = piefed.get("/user", username=username, sort="New", include_content="true", page=page,
+                      limit=PROFILE_PER_PAGE)
+    posts, comments = data.get("posts") or [], data.get("comments") or []
+    counts = (data.get("person_view") or {}).get("counts") or {}
+    pages = max(page_count(counts.get("post_count"), PROFILE_PER_PAGE),
+                page_count(counts.get("comment_count"), PROFILE_PER_PAGE))
+    if page > pages and not posts and not comments:  # past the end: show the last page instead
+        return redirect(url_for("bb.profile", username=username, page=pages if pages > 1 else None))
+    return render_template("profile.html", pv=data.get("person_view") or {}, posts=posts, comments=comments,
+                           moderates=(data.get("moderates") or []), page=page, pages=pages,
+                           has_next=len(posts) >= PROFILE_PER_PAGE or len(comments) >= PROFILE_PER_PAGE)
 
 
 @bp.route("/u/id/<int:person_id>")
@@ -607,7 +621,7 @@ def login():
             return redirect(safe_target(nxt))
         except ApiError as e:
             flash("Incorrect username or password." if e.status == 400 else e.message)
-    return render_template("login.html", next=request.args.get("next", ""))
+    return render_template("login.html", next=request.form.get("next") or request.args.get("next", ""))
 
 
 @bp.route("/logout", methods=["POST"])

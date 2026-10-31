@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='subsilver.css') }}">
 {% for href in theme.css %}<link rel="stylesheet" href="{{ href }}">
 {% endfor %}
-{% if site.icon %}<link rel="icon" href="{{ site.icon|url }}">{% endif %}
+{% if site.icon %}<link rel="icon" href="{{ site.icon|img }}">{% endif %}
 <script src="{{ url_for('static', filename='localtime.js') }}" defer></script>
 <script src="{{ url_for('static', filename='qol.js') }}" defer></script>
 </head>
@@ -56,7 +56,7 @@
   {% endif %}
 
   <div class="copyright">
-    Powered by <a href="https://codeberg.org/rimu/pyfedi" rel="noopener">PieFed</a> &middot; <a href="https://github.com/DaDosDude/PieBB" rel="noopener">PieBB</a> frontend
+    Powered by <a href="https://codeberg.org/rimu/pyfedi" rel="noopener">PieFed</a> &middot; <a href="https://github.com/DaDosDude/PieBB" rel="noopener">PieBB</a> {{ piebb_version }}
     &middot; All times are <span id="bbtz">{{ config.TIMEZONE }}</span>
   </div>
 </div>

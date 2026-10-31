@@ -152,7 +152,7 @@ def poll_vote(post_id):
         return r
     choices = []
     for v in request.form.getlist("choice"):
-        if v.isdigit():
+        if v.isdecimal():
             choices.append(int(v))
     if not choices:
         flash("Pick an option first.")
@@ -290,7 +290,7 @@ def mark_read():
         return r
     ids = []
     for v in request.form.getlist("post_id"):
-        if v.isdigit():
+        if v.isdecimal():
             ids.append(int(v))
     ids = list(dict.fromkeys(ids))[:200]
     if ids:
@@ -346,7 +346,7 @@ def modcp_resolve():
         return r
     _, is_admin, mods = _me()
     if not (is_admin or mods):
-        abort(403)
+        abort(403, "Only moderators can resolve reports.")
     kind = request.form.get("kind")
     report_id = request.form.get("report_id", type=int)
     if kind not in ("post", "comment") or not report_id:

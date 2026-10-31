@@ -142,5 +142,5 @@ def _limit(row, limit):
 
 def hidden_community_ids():
     return {int(k.split(":", 1)[1]) for k, v in settings.get("layout").items()
-            if k.startswith("community:") and k.split(":", 1)[1].isdigit()
+            if k.startswith("community:") and k.split(":", 1)[1].isdecimal()
             and isinstance(v, dict) and v.get("hidden")}

@@ -27,21 +27,23 @@
   </tr>
 </table>
 
-{% if posts %}
-<br><table class="forumline">
-  {{ m.post_table_head('Recent topics') }}
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next, pages) }}</td></tr></table>
+<table class="forumline">
+  {{ m.post_table_head('Topics by ' ~ (u|pname)) }}
   {{ m.post_rows(posts, True) }}
+  {% if not posts %}<tr><td class="row1 center gen" colspan="6">No topics{{ ' on this page' if page > 1 }}.</td></tr>{% endif %}
 </table>
-{% endif %}
-
-{% if comments %}
-<br><table class="forumline">
-  <tr><th colspan="2">Recent posts</th></tr>
+<br>
+<table class="forumline">
+  <tr><th colspan="2">Posts by {{ u|pname }}</th></tr>
   {% for c in comments %}
   <tr><td class="row2 gensmall" width="25%" valign="top"><a href="{{ url_for('bb.comment_link', comment_id=c.comment.id) }}">Re: {{ c.post.title|truncate(50, True) }}</a><br>
+      in <a href="{{ url_for('bb.community', name=c.community|cref) }}">{{ c.community.title }}</a><br>
       {{ c.comment.published|bbdate }}</td>
-      <td class="row1 postbody">{{ c.comment.body|truncate(400, True)|md }}</td></tr>
+      <td class="row1 postbody">{% if c.comment.deleted %}<i class="muted">[deleted]</i>{% elif c.comment.removed %}<i class="muted">[removed by moderator]</i>{% else %}{{ c.comment.body|plain|truncate(400, True) }}{% endif %}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">No posts{{ ' on this page' if page > 1 }}.</td></tr>
   {% endfor %}
 </table>
-{% endif %}
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next, pages) }}</td></tr></table>
 {% endblock %}

@@ -2,17 +2,24 @@ import importlib
 import os
 import re
 from datetime import timedelta
-from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import Flask, Response, abort, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import imgproxy, render, sharedcache
+from . import guard, imgproxy, render, sharedcache
 
 
 def _bool(v):
     return str(v).lower() in ("1", "true", "yes", "on")
+
+
+def _num(value, default, cast=int, minimum=0):
+    """A number from the environment; a typo falls back to the default instead of crashing."""
+    try:
+        return max(minimum, cast(value))
+    except (TypeError, ValueError):
+        return default
 
 
 def _timezone(name):
@@ -40,14 +47,19 @@ def create_app():
         PIEFED_PUBLIC_URL=public,
         PIEFED_API_URL=api_base + "/api/alpha",
         PIEFED_HOST_HEADER=env.get("PIEFED_HOST_HEADER", ""),
-        PIEFED_TIMEOUT=float(env.get("PIEFED_TIMEOUT", "15")),
+        PIEFED_TIMEOUT=_num(env.get("PIEFED_TIMEOUT"), 15.0, float, 1.0),
         FORUM_TITLE=env.get("FORUM_TITLE", ""),
         LOGIN_REQUIRED=_bool(env.get("LOGIN_REQUIRED", "0")),
+        GUEST_RATE_LIMIT=_num(env.get("GUEST_RATE_LIMIT"), 60),
+        WORKERS=_num(env.get("WEB_CONCURRENCY"), 1, minimum=1),
         TIMEZONE=_timezone(env.get("TIMEZONE", "Europe/Amsterdam")),
         DATA_DIR=env.get("DATA_DIR", "/data"),
         IMAGE_PROXY=_bool(env.get("IMAGE_PROXY", "1")),
-        IMAGE_PROXY_SKIP_HOSTS={h for h in [urlsplit(public).hostname] + env.get("IMAGE_PROXY_SKIP_HOSTS", "").split(",")
-                                if h},
+        # images from these origins are loaded straight from them: our own PieFed, plus any
+        # IMAGE_PROXY_SKIP_HOSTS (over https); the CSP allows exactly these
+        IMAGE_DIRECT_ORIGINS={o for o in [imgproxy.origin(public)]
+                              + [f"https://{h.strip().lower()}" for h in env.get("IMAGE_PROXY_SKIP_HOSTS", "").split(",")
+                                 if h.strip()] if o},
         MAX_CONTENT_LENGTH=30 * 1024 * 1024,
         SESSION_COOKIE_NAME="piebb",
         SESSION_COOKIE_HTTPONLY=True,
@@ -79,6 +91,7 @@ def create_app():
     app.register_blueprint(bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(imgproxy.proxy_bp)
+    app.register_blueprint(guard.guard_bp)
 
     from . import settings, themes
 
@@ -103,10 +116,6 @@ def create_app():
         return "#"
     app.url_build_error_handlers.append(link_fallback)
 
-    _pu = urlsplit(public)
-    # PieFed's own origin exactly (scheme and port), for images served straight from PieFed
-    piefed_origin = f"{_pu.scheme}://{_pu.netloc}" if _pu.scheme in ("http", "https") and _pu.netloc else "'self'"
-
     @app.after_request
     def headers(resp):
         resp.headers.setdefault("X-Frame-Options", "DENY")
@@ -114,8 +123,7 @@ def create_app():
         resp.headers.setdefault("Referrer-Policy", "same-origin")
         # with the image proxy on, browsers may only load images from us and our own PieFed,
         # so a remote image that slipped past the proxy can't leak a visitor's IP either
-        img_src = ("'self' data: " + " ".join(dict.fromkeys([f"https://{h}" for h in sorted(app.config["IMAGE_PROXY_SKIP_HOSTS"])]
-                                                            + [piefed_origin]))
+        img_src = ("'self' data: " + " ".join(sorted(app.config["IMAGE_DIRECT_ORIGINS"]))
                    if app.config["IMAGE_PROXY"] else "* data:")
         resp.headers.setdefault(
             "Content-Security-Policy",
