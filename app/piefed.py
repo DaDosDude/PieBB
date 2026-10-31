@@ -406,15 +406,18 @@ def _last_fetch(anon_get):
     """Newest activity in a community: the most recently replied-to topic (sort=Active - PieFed leaves
     topics without replies out of that) or the newest topic (sort=New), whichever is later."""
     def newest(cid, sort):
-        data = anon_get("/post/list", {"community_id": cid, "sort": sort, "limit": 1})
+        # ignore_sticky: PieFed otherwise lists a community's sticky posts first, whatever their age.
+        # A few posts and the latest of them, in case an older PieFed doesn't know that option.
+        data = anon_get("/post/list", {"community_id": cid, "sort": sort, "limit": 3, "ignore_sticky": "true"})
         if data is None:
             raise LookupError
+        found = []
         for pv in data.get("posts") or []:
             if (pv.get("post") or {}).get("id"):
                 when = ((pv.get("counts") or {}).get("newest_comment_time") if sort == "Active" else None) \
                     or pv["post"].get("published") or ""
-                return {"id": pv["post"]["id"], "title": pv["post"].get("title") or "", "time": when}
-        return None
+                found.append({"id": pv["post"]["id"], "title": pv["post"].get("title") or "", "time": when})
+        return max(found, key=lambda x: x["time"]) if found else None
 
     def fetch(cid):
         try:
