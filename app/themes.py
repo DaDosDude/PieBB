@@ -217,6 +217,7 @@ table.forumline {{ background: {c('th_color2', '#006699')}; border: 1px solid {c
 td.row1 {{ background: {c('tr_color1', '#EFEFEF')}; }}
 td.row2 {{ background: {c('tr_color2', '#DEE3E7')}; }}
 td.row3, td.spaceRow {{ background: {c('tr_color3', '#D1D7DC')}; }}
+table.thread td.spaceRow {{ background: {c('th_color2', '#006699')}; }}
 th {{ color: {c('fontcolor3', '#FFA34F')}; background: {c('th_color3', '#006699')}{(' ' + th2) if th2 else ''}; background-repeat: repeat-x; }}
 td.catHead, td.catLeft, td.catBottom, .sidebar-top summary {{ background: {c('tr_color3', '#D1D7DC')}{(' ' + th1) if th1 else ''}; background-repeat: repeat-x; border-color: {c('td_color2', '#FFFFFF')}; }}
 {('td.catBottom { background-image: ' + th3 + '; }') if th3 else ''}

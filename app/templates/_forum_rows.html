@@ -19,7 +19,7 @@
   {% if r.counts %}
     <td class="row2 center gensmall">{{ r.counts.post_count }}</td>
     <td class="row2 center gensmall hide-sm">{{ r.counts.post_reply_count }}</td>
-    <td class="row2 center gensmall hide-sm">{{ r.counts.subscriptions_count }}</td>
+    <td class="row2 center gensmall hide-sm">{{ r.counts.members or r.counts.subscriptions_count }}</td>
   {% else %}
     <td class="row2 center gensmall muted">{{ '–' if r.kind == 'community' else '' }}</td>
     <td class="row2 center gensmall hide-sm"></td><td class="row2 center gensmall hide-sm"></td>

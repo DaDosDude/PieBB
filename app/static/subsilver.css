@@ -76,6 +76,8 @@ form.inline { display: inline; }
 .avatar { display: block; width: auto; height: auto; max-width: 64px; max-height: 64px; margin: 2px 0 4px;
   padding: 2px; border: 1px solid #98AAB1; background: #FFFFFF; }
 .edited { color: #666; cursor: help; }
+/* posts are divided by a bar in the theme's accent colour: clearly stronger than any line inside a post */
+table.thread td.spaceRow { height: 5px; background: #006699; }
 details.modbar { display: inline; }
 details.modbar > summary { display: inline; cursor: pointer; list-style: none; }
 details.modbar > summary::-webkit-details-marker { display: none; }
@@ -175,6 +177,9 @@ td.nested { padding-left: 46px; }
   .postbit .rank::before { content: "\00B7  "; }
   .postbit .postdetails { display: none; }
   .postbit::after { content: ""; display: block; clear: both; }
+  /* on phones: only a faint line between author and message, the accent bar between posts */
+  table.thread .postbit { border-bottom-color: rgba(128, 128, 128, .25); }
+  table.thread td.spaceRow { height: 6px; }
   td.postdetails + td .btn { padding: 1px 6px; font-size: 11px; }
   .header .logo { width: 48px; height: 48px; } .maintitle { font-size: 20px; }
 }

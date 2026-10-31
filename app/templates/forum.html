@@ -6,7 +6,7 @@
 <table class="forumline sidebar">
   <tr><th>About this forum</th></tr>
   <tr><td class="row1 postbody">{{ cv.community.description|md }}</td></tr>
-  <tr><td class="row2 gensmall">{{ cv.counts.subscriptions_count }} members &middot; {{ cv.counts.post_count }} topics &middot; {{ cv.counts.post_reply_count }} posts</td></tr>
+  <tr><td class="row2 gensmall">{{ cv.counts.members or cv.counts.subscriptions_count }} members &middot; {{ cv.counts.post_count }} topics &middot; {{ cv.counts.post_reply_count }} posts</td></tr>
 </table>
 {% endmacro %}
 {% block sidebar %}

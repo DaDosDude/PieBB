@@ -150,10 +150,12 @@ def comment_view(v):
 
 def community_view(v):
     v = d(v)
+    counts = _counts(v.get("counts"), "subscriptions_count", "total_subscriptions_count", "post_count",
+                     "post_reply_count", "active_daily", "active_weekly", "active_monthly")
+    # members on every instance; subscriptions_count alone only counts this instance's own users
+    counts["members"] = max(counts["total_subscriptions_count"], counts["subscriptions_count"])
     return {"community": community(v.get("community")), "subscribed": s(v.get("subscribed")) or "NotSubscribed",
-            "blocked": b(v.get("blocked")),
-            "counts": _counts(v.get("counts"), "subscriptions_count", "post_count", "post_reply_count",
-                              "active_daily", "active_weekly", "active_monthly")}
+            "blocked": b(v.get("blocked")), "counts": counts}
 
 
 def person_view(v):

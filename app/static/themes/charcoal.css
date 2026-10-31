@@ -22,3 +22,4 @@ input[type=text], input[type=password], input[type=url], input[type=search], tex
 .flash { background: #3A3320; border-color: #FFA34F; color: #F0E6C8; }
 .votes[data-my="1"] .score { color: #66BB6A; }
 .votes[data-my="-1"] .score { color: #EF5350; }
+table.thread td.spaceRow { background: #3A5A78; }

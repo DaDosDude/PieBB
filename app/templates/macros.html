@@ -84,7 +84,7 @@
   </td>
   <td class="row2 center gensmall">{{ c.counts.post_count }}</td>
   <td class="row2 center gensmall hide-sm">{{ c.counts.post_reply_count }}</td>
-  <td class="row2 center gensmall hide-sm">{{ c.counts.subscriptions_count }}<br><span class="muted">{{ c.counts.active_monthly }} active</span></td>
+  <td class="row2 center gensmall hide-sm">{{ c.counts.members or c.counts.subscriptions_count }}<br><span class="muted">{{ c.counts.active_monthly }} active</span></td>
 </tr>
 {% endmacro %}
 
