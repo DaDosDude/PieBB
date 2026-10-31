@@ -345,6 +345,53 @@ check("profile lists the account's topics and posts", 'class="topictitle"' in pr
 check("profile past the last page goes to the last page",
       requests.get(BB + "/u/plainuser?page=9999", allow_redirects=False).status_code == 302)
 
+# ---------------- visitors pick their own theme
+admin.post(BB + "/admin/settings", data={"csrf": csrf(admin, "/admin/settings"), "index_forum_limit": "3",
+                                         "feeds_position": "after", "visitor_themes": "1"})
+g = requests.Session()
+page = g.get(BB + "/").text
+check("footer offers a theme menu with Default", 'class="inline themepick"' in page and 'value="charcoal"' in page
+      and '<option value="">Default' in page)
+r = g.post(BB + "/style", data={"csrf": csrf(g), "theme": "charcoal"}, headers={"Referer": BB + "/search"},
+           allow_redirects=False)
+check("theme pick redirects back", r.status_code == 302 and r.headers.get("Location", "").endswith("/search"), r.headers.get("Location"))
+check("picked theme is used", "themes/charcoal.css" in g.get(BB + "/").text)
+check("other visitors keep the default", "themes/charcoal.css" not in requests.get(BB + "/").text)
+g.post(BB + "/style", data={"csrf": csrf(g), "theme": "../../etc"})
+check("unknown theme ignored", "themes/charcoal.css" in g.get(BB + "/").text)
+g.post(BB + "/style", data={"csrf": csrf(g), "theme": ""})
+check("back to the default", "themes/charcoal.css" not in g.get(BB + "/").text)
+g.post(BB + "/style", data={"csrf": csrf(g), "theme": "charcoal"})
+admin.post(BB + "/admin/settings", data={"csrf": csrf(admin, "/admin/settings"), "index_forum_limit": "3",
+                                         "feeds_position": "after"})
+check("admin can turn the menu off", "themepick" not in g.get(BB + "/").text and "themes/charcoal.css" not in g.get(BB + "/").text)
+admin.post(BB + "/admin/settings", data={"csrf": csrf(admin, "/admin/settings"), "index_forum_limit": "3",
+                                         "feeds_position": "after", "visitor_themes": "1"})
+
+# ---------------- voting keeps your place
+tv = csrf(victim, f"/p/{NEW}")
+r = victim.post(BB + f"/vote/post/{NEW}", data={"csrf": tv, "score": "1"},
+                headers={"Referer": BB + f"/p/{NEW}?page=2"}, allow_redirects=False)
+check("vote without JS returns to the same page and post", r.headers.get("Location", "").endswith(f"/p/{NEW}?page=2#p{NEW}"),
+      r.headers.get("Location"))
+r = victim.post(BB + f"/vote/post/{NEW}", data={"csrf": tv, "score": "0"}, headers={"X-Requested-With": "fetch"})
+check("vote from JS answers with the new score", r.headers.get("Content-Type", "").startswith("application/json")
+      and r.json().get("my_vote") == 0 and "score" in r.json(), r.text[:100])
+
+# ---------------- your vote shows at once (PieFed's comment list lags behind)
+cl = requests.get(PF + "/comment/list", params={"post_id": NEW, "sort": "Old", "limit": 1}).json()["comments"]
+if cl:
+    vc = cl[0]["comment"]["id"]
+    tv = csrf(victim, f"/p/{NEW}")
+    victim.post(BB + f"/vote/comment/{vc}", data={"csrf": tv, "score": "1"}, headers={"X-Requested-With": "fetch"})
+    th = victim.get(BB + f"/p/{NEW}").text
+    box = th[th.find(f'/vote/comment/{vc}') - 200:]
+    check("upvoted reply shows as upvoted right away", 'data-my="1"' in box[:400] and 'value="0"' in box[:700], box[:120])
+    victim.post(BB + f"/vote/comment/{vc}", data={"csrf": tv, "score": "0"}, headers={"X-Requested-With": "fetch"})
+    th = victim.get(BB + f"/p/{NEW}").text
+    box = th[th.find(f'/vote/comment/{vc}') - 200:]
+    check("undone vote shows as not voted", 'data-my="0"' in box[:400])
+
 # ---------------- logout revokes the PieFed token
 tok_before = admin.cookies.get("piebb")
 admin.post(BB + "/logout", data={"csrf": csrf(admin)})

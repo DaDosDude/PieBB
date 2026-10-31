@@ -18,7 +18,7 @@ and comments become replies. Replies are shown flat and in order, each quoting t
 - **Moderator CP:** lock, sticky, remove, ban, reports and the mod log, for PieFed community moderators.
 - **phpBB2 themes:** upload a phpBB2 style zip (e.g. from a phpBB2 styles archive) in the admin panel.
   PieBB reads its `theme_info.cfg` colours, stylesheet and images (folder icons, buttons). Built-in themes:
-  subSilver and a dark Charcoal theme.
+  subSilver and a dark Charcoal theme. Visitors can pick any installed theme from the footer (admins can turn this off).
 - **Admin panel:** for PieFed site admins. Forum settings, a category layout editor (rename, hide, reorder),
   themes and custom CSS.
 - **Privacy:** an image proxy so other instances don't see your visitors' IPs, a strict CSP and CSRF protection.

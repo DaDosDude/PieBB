@@ -87,6 +87,45 @@
     if (ta) apply(ta, b.getAttribute("data-md"));
   });
 
+  // Votes: sent in the background and the score updated in place, so the page doesn't jump to the
+  // top. Anything unexpected (logged out, PieFed error) falls back to the normal form submit.
+  document.addEventListener("submit", function (e) {
+    var form = e.target, box = form.closest ? form.closest(".votes") : null;
+    if (!box || !window.fetch || form.dataset.sending) return;
+    e.preventDefault();
+    form.dataset.sending = "1";
+    fetch(form.action, { method: "POST", body: new FormData(form), credentials: "same-origin",
+                         headers: { "X-Requested-With": "fetch", "Accept": "application/json" } })
+      .then(function (r) {
+        var json = (r.headers.get("Content-Type") || "").indexOf("application/json") === 0;
+        if (!r.ok || !json) throw new Error("fallback");
+        return r.json();
+      })
+      .then(function (v) {
+        delete form.dataset.sending;
+        var score = box.querySelector(".score");
+        score.textContent = v.score;
+        score.title = v.upvotes + " up / " + v.downvotes + " down";
+        box.setAttribute("data-my", v.my_vote);
+        box.querySelectorAll("form").forEach(function (f) {
+          var input = f.querySelector("input[name=score]"), btn = f.querySelector("button");
+          var dir = parseInt(btn.getAttribute("data-dir"), 10), on = v.my_vote === dir;
+          input.value = on ? 0 : dir;
+          btn.classList.toggle("on", on);
+          btn.title = on ? (dir > 0 ? "You liked this (click to undo)" : "You disliked this (click to undo)")
+                         : (dir > 0 ? "Thumbs up" : "Thumbs down");
+        });
+      })
+      .catch(function () { form.submit(); });
+  });
+
+  // Theme picker in the footer: switch as soon as one is chosen
+  document.querySelectorAll(".themepick").forEach(function (f) {
+    var go = f.querySelector("button");
+    if (go) go.hidden = true;
+    f.querySelector("select").addEventListener("change", function () { f.submit(); });
+  });
+
   window.addEventListener("beforeunload", function (e) {
     if (!dirty) return;
     e.preventDefault();

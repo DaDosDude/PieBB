@@ -58,6 +58,15 @@
   <div class="copyright">
     Powered by <a href="https://codeberg.org/rimu/pyfedi" rel="noopener">PieFed</a> &middot; <a href="https://github.com/DaDosDude/PieBB" rel="noopener">PieBB</a> {{ piebb_version }}
     &middot; All times are <span id="bbtz">{{ config.TIMEZONE }}</span>
+    {% if theme.choices|length > 1 %}
+    <form class="inline themepick" method="post" action="{{ url_for('bb.set_theme') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      &middot; <label>Theme: <select name="theme">
+        <option value="">Default{% for t in theme.choices if t.slug == theme.default %} ({{ t.name }}){% endfor %}</option>
+        {% for t in theme.choices %}<option value="{{ t.slug }}"{% if t.slug == theme.picked %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select></label> <button class="btnlink">Go</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 </body>

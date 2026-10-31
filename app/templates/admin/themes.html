@@ -4,10 +4,10 @@
   <tr><th colspan="3">Installed themes</th></tr>
   {% for t in themes %}
   <tr>
-    <td class="row1 gen" width="60%"><b>{{ t.name }}</b>{% if t.slug == current %} <span style="color:#DD6900">(active)</span>{% endif %}
+    <td class="row1 gen" width="60%"><b>{{ t.name }}</b>{% if t.builtin %} <span class="gensmall muted">(built-in)</span>{% endif %}{% if t.slug == current %} <span style="color:#DD6900">(site default)</span>{% endif %}
       {% if t.source %}<br><span class="gensmall muted">{{ t.source }}</span>{% endif %}</td>
     <td class="row2 center">{% if t.slug != current %}
-      <form class="inline" method="post">{{ m.csrf() }}<input type="hidden" name="action" value="select"><input type="hidden" name="theme" value="{{ t.slug }}"><input type="submit" value="Use"></form>{% endif %}</td>
+      <form class="inline" method="post">{{ m.csrf() }}<input type="hidden" name="action" value="select"><input type="hidden" name="theme" value="{{ t.slug }}"><input type="submit" value="Make default"></form>{% endif %}</td>
     <td class="row2 center">{% if not t.builtin %}
       <form class="inline" method="post" onsubmit="return confirm({{ ('Delete ' ~ t.name ~ '?')|tojson|forceescape }})">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="theme" value="{{ t.slug }}"><button class="btnlink">Delete</button></form>{% endif %}</td>
   </tr>

@@ -1,7 +1,8 @@
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 
-from flask import (Blueprint, abort, current_app, flash, redirect, render_template,
+from flask import (Blueprint, abort, current_app, flash, jsonify, redirect, render_template,
                    request, session, url_for)
 
 from werkzeug.exceptions import HTTPException
@@ -106,6 +107,28 @@ def comment_parent(path):
         except ValueError:
             return None
     return None
+
+
+VOTE_MEMORY = 900  # seconds; PieFed's comment lists can show a vote up to 10 minutes late
+
+
+def remember_vote(kind, obj_id, score):
+    """Keep the visitor's own recent votes in the session: PieFed caches each user's votes for its
+    comment lists, so a fresh vote would otherwise show as 'not voted' (and a second click undo it)."""
+    now = int(time.time())
+    votes = {k: v for k, v in (session.get("votes") or {}).items()
+             if isinstance(v, list) and len(v) == 2 and now - v[1] < VOTE_MEMORY}
+    votes[f"{kind}:{obj_id}"] = [score, now]
+    session["votes"] = dict(sorted(votes.items(), key=lambda kv: kv[1][1])[-100:])
+
+
+def apply_votes(kind, views):
+    """Overlay remembered votes on views (post_view/comment_view dicts) whose my_vote may be stale."""
+    votes, now = session.get("votes") or {}, time.time()
+    for view in views:
+        hit = votes.get(f"{kind}:{(view.get(kind) or {}).get('id')}")
+        if isinstance(hit, list) and len(hit) == 2 and now - hit[1] < VOTE_MEMORY:
+            view["my_vote"] = hit[0]
 
 
 def me_info():
@@ -308,6 +331,9 @@ def thread(post_id):
             piefed.post("/post/mark_as_read", {"post_id": post_id, "read": True})
         except ApiError:
             pass
+    if logged_in():
+        apply_votes("post", [pv])
+        apply_votes("comment", comments)
     return render_template("thread.html", pv=pv, comments=comments, page=page, pages=pages,
                            offset=(page - 1) * COMMENTS_PER_PAGE,
                            has_next=len(comments) >= COMMENTS_PER_PAGE)
@@ -491,8 +517,16 @@ def vote(kind, obj_id):
     score = request.form.get("score", type=int, default=0)
     if score not in (-1, 0, 1) or kind not in ("post", "comment"):
         abort(400)
-    piefed.post(f"/{kind}/like", {f"{kind}_id": obj_id, "score": score})
-    return back(url_for("bb.index"))
+    res = piefed.post(f"/{kind}/like", {f"{kind}_id": obj_id, "score": score})
+    remember_vote(kind, obj_id, score)
+    view = res.get(f"{kind}_view") or {}
+    if request.headers.get("X-Requested-With") == "fetch":  # qol.js: update the score in place, no reload
+        counts = view.get("counts") or {}
+        return jsonify(score=counts.get("score", 0), upvotes=counts.get("upvotes", 0),
+                       downvotes=counts.get("downvotes", 0), my_vote=score)
+    # without JS: back to the same page, at the post that was voted on
+    anchor = ("#p" if kind == "post" else "#c") + str(obj_id)
+    return redirect(safe_target(request.referrer, url_for("bb.index")) + anchor)
 
 
 @bp.route("/follow/<int:community_id>", methods=["POST"])
@@ -634,6 +668,21 @@ def logout():
         piefed.forget_session()
     session.clear()
     return redirect(url_for("bb.index"))
+
+
+@bp.route("/style", methods=["POST"])
+def set_theme():
+    """A visitor's own pick from the installed themes, remembered in a cookie for a year."""
+    resp = back(url_for("bb.index"))
+    slug = request.form.get("theme", "")
+    if not settings.get("visitor_themes"):
+        return resp
+    if slug == "":
+        resp.delete_cookie(themes.COOKIE)  # "Default": follow the site's theme, even when the admin changes it
+    elif slug in {t["slug"] for t in themes.available()}:
+        resp.set_cookie(themes.COOKIE, slug, max_age=365 * 86400, httponly=True, samesite="Lax",
+                        secure=current_app.config["SESSION_COOKIE_SECURE"])
+    return resp
 
 
 @bp.route("/search")

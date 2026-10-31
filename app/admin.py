@@ -40,6 +40,7 @@ def general():
         settings.update(
             forum_title=request.form.get("forum_title", "").strip(),
             login_required=bool(request.form.get("login_required")),
+            visitor_themes=bool(request.form.get("visitor_themes")),
             feeds_position="before" if request.form.get("feeds_position") == "before" else "after",
             index_forum_limit=min(max(request.form.get("index_forum_limit", 3, type=int) or 0, 0), 100),
         )

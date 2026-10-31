@@ -15,13 +15,13 @@ import re
 import shutil
 import zipfile
 
-from flask import current_app, url_for
+from flask import current_app, request, url_for
 
 from . import settings
 
 BUILTIN = {
-    "subsilver": {"name": "subSilver (built-in)", "css": []},
-    "charcoal": {"name": "Charcoal (built-in, dark)", "css": ["themes/charcoal.css"]},
+    "subsilver": {"name": "subSilver", "css": []},
+    "charcoal": {"name": "Charcoal (dark)", "css": ["themes/charcoal.css"]},
 }
 ALLOWED_EXT = {".css", ".gif", ".png", ".jpg", ".jpeg", ".webp", ".cfg", ".txt", ".bmp", ".ico"}
 MAX_ZIP = 25 * 1024 * 1024
@@ -55,9 +55,22 @@ def available():
     return out
 
 
+COOKIE = "piebb_theme"
+
+
+def chosen():
+    """The visitor's own theme (cookie), if allowed and still installed; otherwise None."""
+    slug = request.cookies.get(COOKIE)
+    if not slug or not settings.get("visitor_themes"):
+        return None
+    return slug if slug in {t["slug"] for t in available()} else None
+
+
 def current():
     """Context for templates: stylesheet URLs and image lookup for the active theme."""
-    slug = settings.get("theme") or "subsilver"
+    site_default = settings.get("theme") or "subsilver"
+    picked = chosen()
+    slug = picked or site_default
     css, images = [], {}
     if slug in BUILTIN:
         css = [url_for("static", filename=p) for p in BUILTIN[slug]["css"]]
@@ -68,7 +81,8 @@ def current():
             images = {k: url_for("theme_file", slug=slug, path=v) for k, v in (meta.get("images") or {}).items()}
     if settings.get("custom_css"):
         css.append(url_for("custom_css", v=settings.get("css_version")))
-    return {"slug": slug, "css": css, "img": images.get}
+    return {"slug": slug, "css": css, "img": images.get, "default": site_default, "picked": picked,
+            "choices": available() if settings.get("visitor_themes") else []}
 
 
 # ---- phpBB2 import --------------------------------------------------------

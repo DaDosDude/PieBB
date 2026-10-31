@@ -20,6 +20,8 @@ DEFAULTS = {
     "feeds_position": "after",
     # communities shown per category on the index (most active first); 0 = all
     "index_forum_limit": 3,
+    # visitors may pick one of the installed themes for themselves (kept in a cookie)
+    "visitor_themes": True,
 }
 
 

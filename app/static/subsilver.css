@@ -84,6 +84,12 @@ details.modbar[open] > summary::before { content: "\25BE "; }
 details.modbar[open] > form, details.modbar[open] > a { margin-left: 4px; }
 .rank { font-size: 10px; color: #333; }
 .votes { white-space: nowrap; }
+/* your own vote: a filled button and a coloured score, so it's obvious at a glance */
+.votes .btnlink { padding: 0 3px; border-radius: 2px; }
+.votes .btnlink[data-dir="1"].on { color: #FFF; background: #2E7D32; font-weight: bold; }
+.votes .btnlink[data-dir="-1"].on { color: #FFF; background: #C62828; font-weight: bold; }
+.votes[data-my="1"] .score { color: #2E7D32; font-weight: bold; }
+.votes[data-my="-1"] .score { color: #C62828; font-weight: bold; }
 .score { font-weight: bold; padding: 0 3px; }
 .quotehead { font-size: 11px; font-weight: bold; margin: 0 0 2px 12px; }
 .quote { font-size: 11px; line-height: 1.4; color: #333; background: #FAFAFA; border: 1px solid #C2CFDF;
@@ -101,6 +107,7 @@ details.modbar[open] > form, details.modbar[open] > a { margin-left: 4px; }
 @media (max-width: 640px) { .pagination .jumppage { display: none; } .pagination a { padding: 0 3px; } }
 .flash { background: #FFF6CF; border: 1px solid #DD6900; padding: 6px; margin: 6px 0; font-size: 11px; }
 .copyright { text-align: center; color: #444; font-size: 10px; padding-top: 8px; }
+.themepick select { font-size: 10px; padding: 0; }
 .tabs a { margin-right: 8px; } .tabs a.on { color: #DD6900; font-weight: bold; }
 .right { text-align: right; } .center { text-align: center; } .nowrap { white-space: nowrap; }
 .muted { color: #555; }

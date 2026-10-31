@@ -13,6 +13,8 @@
         <label><input type="radio" name="feeds_position" value="before"{% if settings.feeds_position == 'before' %} checked{% endif %}> Before topics</label></td></tr>
   <tr><td class="row1 gen"><b>Require login</b><br><span class="gensmall">Guests only see the login page</span></td>
       <td class="row2 gen"><label><input type="checkbox" name="login_required" value="1"{% if settings.login_required %} checked{% endif %}> Enabled</label></td></tr>
+  <tr><td class="row1 gen"><b>Visitors pick a theme</b><br><span class="gensmall">A theme menu in the footer lists the installed themes; the choice is kept in a cookie. The theme chosen on the Themes page stays the default</span></td>
+      <td class="row2 gen"><label><input type="checkbox" name="visitor_themes" value="1"{% if settings.visitor_themes %} checked{% endif %}> Enabled</label></td></tr>
   <tr><td class="catBottom center" colspan="2"><input type="submit" value="Save"></td></tr>
 </table>
 </form>

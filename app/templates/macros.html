@@ -44,17 +44,17 @@
 {% endmacro %}
 
 {% macro votes(kind, obj_id, counts, my_vote) %}
-<span class="votes">
+<span class="votes" data-vote="{{ kind }}" data-my="{{ my_vote or 0 }}">
 {% if logged_in %}
   <form class="inline" method="post" action="{{ url_for('bb.vote', kind=kind, obj_id=obj_id) }}">{{ csrf() }}
     <input type="hidden" name="score" value="{{ 0 if my_vote == 1 else 1 }}">
-    <button class="btnlink{% if my_vote == 1 %} on{% endif %}" title="Thumbs up">[+]</button></form>
+    <button class="btnlink{% if my_vote == 1 %} on{% endif %}" title="{{ 'You liked this (click to undo)' if my_vote == 1 else 'Thumbs up' }}" data-dir="1">[+]</button></form>
 {% endif %}
 <span class="score" title="{{ counts.upvotes }} up / {{ counts.downvotes }} down">{{ counts.score }}</span>
 {% if logged_in and site.enable_downvotes is not false %}
   <form class="inline" method="post" action="{{ url_for('bb.vote', kind=kind, obj_id=obj_id) }}">{{ csrf() }}
     <input type="hidden" name="score" value="{{ 0 if my_vote == -1 else -1 }}">
-    <button class="btnlink{% if my_vote == -1 %} on{% endif %}" title="Thumbs down">[&minus;]</button></form>
+    <button class="btnlink{% if my_vote == -1 %} on{% endif %}" title="{{ 'You disliked this (click to undo)' if my_vote == -1 else 'Thumbs down' }}" data-dir="-1">[&minus;]</button></form>
 {% endif %}
 </span>
 {% endmacro %}
