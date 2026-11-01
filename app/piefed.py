@@ -436,7 +436,7 @@ def community_counts(community_ids, budget=2.5):
 
 def community_stats(community_ids, budget=2.5):
     """(counts, last posts) for the index in one parallel round. Last post = the community's most
-    recently active topic (PieFed's sort=Active, bumped by replies)."""
+    recently active topic (see _last_fetch)."""
     anon_get = _anon_getter(budget)
     return tuple(_batch([("counts", COUNTS_TTL, _counts_fetch(anon_get)), ("last", LAST_TTL, _last_fetch(anon_get))],
                         community_ids, budget))

@@ -192,6 +192,8 @@ button.notiflink { text-align: left; font-size: inherit; white-space: normal; }
 /* formatting toolbar above message boxes */
 .mdbar { margin: 0 0 3px; display: flex; flex-wrap: wrap; gap: 3px; }
 .mdbar[hidden] { display: none; }
+.evfields td { padding: 2px 6px 2px 0; } .evfields input[type=datetime-local] { width: auto; }
+details > summary { cursor: pointer; }
 .mdbar button { font: 11px Verdana, Arial, sans-serif; padding: 2px 7px; min-width: 28px; cursor: pointer; }
 .postbody details { border: 1px solid #98AAB1; background: #FAFAFA; padding: 3px 8px; margin: 6px 0; }
 .postbody details > summary { cursor: pointer; font-weight: bold; }

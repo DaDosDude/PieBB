@@ -62,7 +62,7 @@ def robots():
     """Polite crawlers: index the forum, skip pages that are endless or only useful to people."""
     lines = ["User-agent: *", "Crawl-delay: 10"]
     lines += [f"Disallow: {p}" for p in (
-        "/search", "/login", "/u/", "/img", "/messages", "/notifications", "/unread", "/admin",
+        "/search", "/login", "/u/", "/img", "/messages", "/notifications", "/unread", "/saved", "/blocked", "/admin",
         "/modcp", "/report/", "/mod/", "/*/reply", "/*/edit", "/*/new", "/*?page=", "/*&page=")]
     return Response("\n".join(lines) + "\n", mimetype="text/plain",
                     headers={"Cache-Control": "public, max-age=86400"})

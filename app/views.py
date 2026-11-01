@@ -1,6 +1,7 @@
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect, render_template,
                    request, session, url_for)
@@ -17,7 +18,9 @@ PER_PAGE = 25
 COMMENTS_PER_PAGE = 50
 MAX_PAGE = 10000
 PROFILE_PER_PAGE = 20
-TOPIC_SORT = "New"  # phpBB-style: topic lists always show the newest topics first
+TOPIC_SORT = "New"  # order of the pages after BUMP_PAGES
+BUMP_PAGES = 1      # page 1 is ordered phpBB-style by latest reply; later pages by posting order
+FETCH_CHUNK = 50
 LISTINGS = ("Subscribed", "Local", "All")
 SEARCH_TYPES = ("Posts", "Comments", "Communities", "Users")
 
@@ -90,14 +93,6 @@ def site():
         return {}
 
 
-def split_sticky(posts, page):
-    posts = [p for p in posts if isinstance(p, dict) and isinstance(p.get("post"), dict)]
-    if page != 1:
-        return [], posts
-    sticky = [p for p in posts if p["post"].get("sticky")]
-    return sticky, [p for p in posts if not p["post"].get("sticky")]
-
-
 def comment_parent(path):
     parts = (path or "").split(".")
     # path is "0.<root>.<child>...": parent is the second-to-last id
@@ -109,7 +104,7 @@ def comment_parent(path):
     return None
 
 
-VOTE_MEMORY = 900  # seconds; PieFed's comment lists can show a vote up to 10 minutes late
+VOTE_MEMORY = 900  # seconds to trust our own record of a vote or block: PieFed's caches lag up to 10 minutes
 
 
 def remember_vote(kind, obj_id, score):
@@ -120,6 +115,46 @@ def remember_vote(kind, obj_id, score):
              if isinstance(v, list) and len(v) == 2 and now - v[1] < VOTE_MEMORY}
     votes[f"{kind}:{obj_id}"] = [score, now]
     session["votes"] = dict(sorted(votes.items(), key=lambda kv: kv[1][1])[-100:])
+
+
+def remember_block(kind, obj_id, blocking):
+    """Like votes: PieFed caches an account's block lists (/user/me) for up to 10 minutes."""
+    now = int(time.time())
+    blocks = {k: v for k, v in (session.get("blocks") or {}).items()
+              if isinstance(v, list) and len(v) == 2 and now - v[1] < VOTE_MEMORY}
+    blocks[f"{kind}:{obj_id}"] = [bool(blocking), now]
+    session["blocks"] = dict(sorted(blocks.items(), key=lambda kv: kv[1][1])[-100:])
+
+
+def recent_blocks(kind):
+    """{id: blocked?} for the visitor's own block changes of the last few minutes."""
+    now, out = time.time(), {}
+    for key, v in (session.get("blocks") or {}).items():
+        k, _, i = key.partition(":")
+        if k == kind and i.isdecimal() and isinstance(v, list) and len(v) == 2 and now - v[1] < VOTE_MEMORY:
+            out[int(i)] = bool(v[0])
+    return out
+
+
+def is_blocked(kind, obj_id, known):
+    """Whether the visitor blocks this user/community: a recent change wins over PieFed's cached answer."""
+    return recent_blocks(kind).get(obj_id, known)
+
+
+def blocked_community_ids():
+    """Communities the logged-in visitor has blocked, for the personal front page. PieFed's own answer
+    (cached briefly per login), with the visitor's changes of the last minutes applied."""
+    if not logged_in():
+        return frozenset()
+    try:
+        ids = {c["id"] for c in piefed.get("/user/me", cache="user").get("community_blocks") or []}
+    except piefed.SessionExpired:
+        raise
+    except ApiError:
+        ids = set()
+    for cid, now_blocked in recent_blocks("community").items():
+        (ids.add if now_blocked else ids.discard)(cid)
+    return frozenset(ids)
 
 
 def apply_votes(kind, views):
@@ -191,9 +226,10 @@ def index():
     # the front page is always the categories; the flat forum list only on request
     # (or when the instance has no topics or visible feeds)
     if request.args.get("view") != "flat":
-        cats = forums.build_index()
+        blocked = blocked_community_ids()
+        cats = forums.build_index(blocked=blocked)
         if cats:
-            return render_template("index_topics.html", cats=cats)
+            return render_template("index_topics.html", cats=cats, blocked_count=len(blocked))
 
     listing = request.args.get("type")
     if listing not in LISTINGS or (listing == "Subscribed" and not logged_in()):
@@ -227,18 +263,75 @@ def feed(feed_id):
     return _node_listing("feed", f, parent, feed_id=feed_id)
 
 
+def _activity(pv):
+    """When a topic was last active: its newest reply, or when it was posted."""
+    counts = pv.get("counts") or {}
+    newest = counts.get("newest_comment_time") if counts.get("comments") else None
+    return newest or (pv.get("post") or {}).get("published") or ""
+
+
+def _stream(query, sort):
+    """Topics of a listing in PieFed's order for `sort`, fetched a chunk at a time as needed."""
+    first = None
+    for n in range(1, BUMP_PAGES * PER_PAGE // FETCH_CHUNK + 3):
+        batch = piefed.get("/post/list", sort=sort, page=n, limit=FETCH_CHUNK, **query).get("posts") or []
+        yield from batch
+        first = first or len(batch)
+        if not batch or len(batch) < first:  # the end (PieFed may cap the chunk size, so compare to the first)
+            return
+
+
+def bumped_topics(query, page, pin_sticky):
+    """(sticky, topics, has_next) for a topic list. The first BUMP_PAGES are ordered like phpBB: by
+    latest reply, new topics included. PieFed's "Active" sort leaves out topics without replies, so it
+    is merged with those from "New". Later pages use posting order, to keep API calls down."""
+    if page > BUMP_PAGES:
+        posts = [p for p in piefed.get("/post/list", sort=TOPIC_SORT, page=page, limit=PER_PAGE, **query)
+                 .get("posts") or [] if not (pin_sticky and p["post"]["sticky"])]
+        return [], posts, len(posts) >= PER_PAGE
+    need = page * PER_PAGE + 1  # one extra tells whether there is a next page
+    sticky, seen, pool = [], set(), []
+    active = _stream(query, "Active")
+    fresh = _stream(query, "New")
+    replied = []
+    for pv in active:  # topics with replies, latest reply first
+        if pin_sticky and pv["post"]["sticky"]:
+            continue
+        replied.append(pv)
+        if len(replied) >= need:
+            break
+    cutoff = _activity(replied[-1]) if len(replied) >= need else ""
+    unreplied = []
+    for pv in fresh:  # topics without replies (and the sticky ones), newest first
+        if pin_sticky and pv["post"]["sticky"]:
+            if pv["post"]["id"] not in seen:
+                sticky.append(pv)
+                seen.add(pv["post"]["id"])
+            continue
+        if (pv.get("counts") or {}).get("comments"):
+            continue
+        if len(unreplied) >= need or (cutoff and _activity(pv) < cutoff):
+            break  # older than anything that could still make this page
+        unreplied.append(pv)
+    for pv in replied + unreplied:
+        if pv["post"]["id"] not in seen:
+            seen.add(pv["post"]["id"])
+            pool.append(pv)
+    pool.sort(key=_activity, reverse=True)
+    start = (page - 1) * PER_PAGE
+    return (sticky if page == 1 else []), pool[start:start + PER_PAGE], len(pool) > start + PER_PAGE
+
+
 def _node_listing(kind, node, parent, **query):
     """Topic list of a PieFed topic or feed (all their communities' posts)."""
     page = page_arg()
-    data = piefed.get("/post/list", sort=TOPIC_SORT, page=page, limit=PER_PAGE, **query)
+    sticky, posts, has_next = bumped_topics(query, page, pin_sticky=False)
     pages = listing_pages(node)
-    if page > 1 and not data.get("posts"):  # past the end: show the last page instead
+    if page > 1 and not posts:  # past the end: show the last page instead
         return redirect(url_for(f"bb.{kind}", page=min(page - 1, pages or 1), **query))
-    sticky, posts = split_sticky(data.get("posts") or [], page)
     return render_template("forum.html", kind=kind, topic=_named(node, kind), parent=_named(parent, kind),
-                           subforums=forums.subforum_rows(node, kind),
-                           sticky=sticky, posts=posts, page=page, pages=pages,
-                           has_next=len(data.get("posts") or []) >= PER_PAGE)
+                           subforums=forums.subforum_rows(node, kind, blocked_community_ids()),
+                           sticky=sticky, posts=posts, page=page, pages=pages, has_next=has_next)
 
 
 def listing_pages(node):
@@ -282,16 +375,15 @@ def community(name):
     if not (cv.get("community") or {}).get("id"):
         abort(404)
     cv["community"] = _renamed_community(cv["community"])
+    if logged_in():
+        cv["blocked"] = is_blocked("community", cv["community"]["id"], cv.get("blocked"))
     page = page_arg()
-    data = piefed.get("/post/list", community_id=cv["community"]["id"], sort=TOPIC_SORT,
-                      page=page, limit=PER_PAGE)
+    sticky, posts, has_next = bumped_topics({"community_id": cv["community"]["id"]}, page, pin_sticky=True)
     pages = page_count((cv.get("counts") or {}).get("post_count"), PER_PAGE)
-    if page > 1 and not data.get("posts"):  # past the end: show the last page instead
+    if page > 1 and not posts:  # past the end: show the last page instead
         return redirect(url_for("bb.community", name=name, page=min(page - 1, pages)))
-    sticky, posts = split_sticky(data.get("posts") or [], page)
     return render_template("forum.html", kind="community", cv=cv, mods=(info.get("moderators") or []),
-                           sticky=sticky, posts=posts, page=page, pages=pages,
-                           has_next=len(data.get("posts") or []) >= PER_PAGE)
+                           sticky=sticky, posts=posts, page=page, pages=pages, has_next=has_next)
 
 
 # ---- threads --------------------------------------------------------------
@@ -438,6 +530,57 @@ def _sniff_image(head):
     return None
 
 
+POLL_DAYS = (1, 3, 7, 14, 30)
+
+
+def _utc(local, tz_name):
+    """'2026-11-03T20:00' typed in the visitor's timezone -> PieFed's UTC timestamp, or None."""
+    try:
+        when = datetime.fromisoformat(local)
+    except ValueError:
+        return None
+    try:
+        zone = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo(current_app.config["TIMEZONE"])
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=zone)
+    return when.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def topic_extras(form):
+    """(poll, event, problem) for a new topic: PieFed payloads from the optional poll/event fields."""
+    choices = [c.strip()[:200] for c in form["poll_text"].splitlines() if c.strip()]
+    poll = event = None
+    if choices:
+        if len(choices) < 2:
+            return None, None, "A poll needs at least two options."
+        if len(choices) > 10:
+            return None, None, "A poll can have at most 10 options."
+        days = form["poll_days"] if form["poll_days"] in POLL_DAYS else 3
+        poll = {"mode": form["poll_mode"], "local_only": False,
+                "end_poll": (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "choices": [{"id": n, "choice_text": c, "sort_order": n} for n, c in enumerate(choices, 1)]}
+    if form["ev_start"] or form["ev_end"]:
+        if poll:
+            return None, None, "A topic can be a poll or an event, not both."
+        start, end = _utc(form["ev_start"], form["tz"]), _utc(form["ev_end"] or form["ev_start"], form["tz"])
+        if not start or not end:
+            return None, None, "Enter when the event starts (and ends)."
+        if end < start:
+            return None, None, "The event can't end before it starts."
+        link = form["ev_link"] if render.safe_url(form["ev_link"]) != "#" else None
+        if form["ev_link"] and not link:
+            return None, None, "The online link must start with http:// or https://."
+        try:
+            max_people = max(0, int(form["ev_max"] or "0", 10))
+        except ValueError:
+            return None, None, "Maximum attendees must be a number."
+        event = {"start": start, "end": end, "timezone": form["tz"] or current_app.config["TIMEZONE"],
+                 "online": bool(link), "online_link": link, "max_attendees": max_people, "join_mode": "free"}
+    return poll, event, None
+
+
 @bp.route("/c/<path:name>/new", methods=["GET", "POST"])
 def new_topic(name):
     if (r := require_login()):
@@ -445,22 +588,32 @@ def new_topic(name):
     cv = piefed.get("/community", name=name, cache=False).get("community_view") or {}
     if not (cv.get("community") or {}).get("id"):
         abort(404)
-    form = {"title": "", "body": "", "url": "", "nsfw": False}
+    form = {"title": "", "body": "", "url": "", "nsfw": False, "poll_text": "", "poll_mode": "single",
+            "poll_days": 3, "ev_start": "", "ev_end": "", "ev_link": "", "ev_max": "", "tz": ""}
     if request.method == "POST":
         form = {"title": request.form.get("title", "").strip(), "body": request.form.get("body", ""),
-                "url": request.form.get("url", "").strip(), "nsfw": bool(request.form.get("nsfw"))}
+                "url": request.form.get("url", "").strip(), "nsfw": bool(request.form.get("nsfw")),
+                "poll_text": request.form.get("poll_text", ""),
+                "poll_mode": "multiple" if request.form.get("poll_mode") == "multiple" else "single",
+                "poll_days": request.form.get("poll_days", 3, type=int),
+                "ev_start": request.form.get("ev_start", "").strip(), "ev_end": request.form.get("ev_end", "").strip(),
+                "ev_link": request.form.get("ev_link", "").strip(), "ev_max": request.form.get("ev_max", "").strip(),
+                "tz": request.form.get("tz", "").strip()}
         if request.form.get("upload"):
             form["body"] = attach_upload(form["body"])
-            return render_template("posting.html", mode="topic", cv=cv, form=form)
+            return render_template("posting.html", mode="topic", cv=cv, form=form, poll_days=POLL_DAYS)
         if request.form.get("preview"):
-            return render_template("posting.html", mode="topic", cv=cv, form=form, preview=True)
+            return render_template("posting.html", mode="topic", cv=cv, form=form, preview=True, poll_days=POLL_DAYS)
+        poll, event, problem = topic_extras(form)
         if not form["title"]:
             flash("You must enter a subject.")
+        elif problem:
+            flash(problem)
         else:
             try:
                 res = piefed.post("/post", {"title": form["title"], "community_id": cv["community"]["id"],
                                             "body": form["body"] or None, "url": form["url"] or None,
-                                            "nsfw": form["nsfw"]})
+                                            "nsfw": form["nsfw"], "poll": poll, "event": event})
                 new_id = ((res.get("post_view") or {}).get("post") or {}).get("id")
                 if not new_id:  # created, but PieFed answered in an unexpected shape
                     flash("Topic posted.")
@@ -468,7 +621,7 @@ def new_topic(name):
                 return redirect(url_for("bb.thread", post_id=new_id))
             except ApiError as e:
                 flash(e.message)
-    return render_template("posting.html", mode="topic", cv=cv, form=form)
+    return render_template("posting.html", mode="topic", cv=cv, form=form, poll_days=POLL_DAYS)
 
 
 @bp.route("/p/<int:post_id>/reply", methods=["GET", "POST"])
@@ -624,7 +777,18 @@ def profile(username):
                 page_count(counts.get("comment_count"), PROFILE_PER_PAGE))
     if page > pages and not posts and not comments:  # past the end: show the last page instead
         return redirect(url_for("bb.profile", username=username, page=pages if pages > 1 else None))
+    person_id = ((data.get("person_view") or {}).get("person") or {}).get("id")
+    blocked = False
+    if logged_in() and person_id:
+        try:
+            known = person_id in {p["id"] for p in piefed.get("/user/me", cache=False).get("person_blocks") or []}
+        except piefed.SessionExpired:
+            raise
+        except ApiError:  # the profile still shows; only the Block button may be out of date
+            known = False
+        blocked = is_blocked("user", person_id, known)
     return render_template("profile.html", pv=data.get("person_view") or {}, posts=posts, comments=comments,
+                           is_blocked=blocked,
                            moderates=(data.get("moderates") or []), page=page, pages=pages,
                            has_next=len(posts) >= PROFILE_PER_PAGE or len(comments) >= PROFILE_PER_PAGE)
 

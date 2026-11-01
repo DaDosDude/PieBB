@@ -27,6 +27,7 @@
           {% if is_admin %}<a href="{{ url_for('admin.dashboard') }}"><b>Admin Panel</b></a>{% endif %}
           {% if is_mod %}<a href="{{ url_for('bb.modcp') }}">Moderator CP</a>{% endif %}
           <a href="{{ url_for('bb.unread') }}">Unread posts</a>
+          <a href="{{ url_for('bb.saved') }}">Saved</a>
           <a href="{{ url_for('bb.notifications') }}">{% if unread_notes %}<b>Notifications ({{ unread_notes }})</b>{% else %}Notifications{% endif %}</a>
           <a href="{{ url_for('bb.messages') }}">{% if unread_pms %}<b>Messages ({{ unread_pms }})</b>{% else %}Messages{% endif %}</a>
           <a href="{{ url_for('bb.profile', username=me.user_name) }}">Profile</a>

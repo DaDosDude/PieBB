@@ -1,4 +1,5 @@
-// Small posting conveniences. Everything here is optional: without JS the forms work the same.
+// Small conveniences: posting helpers, voting without a page reload, the event timezone and the
+// theme menu. Everything here is optional: without JS the forms work the same.
 (function () {
   "use strict";
   var dirty = false;
@@ -102,22 +103,32 @@
         return r.json();
       })
       .then(function (v) {
+        // the vote went through: never send it again (a repeated vote undoes it on PieFed), at most reload
+        try { showVote(box, v); } catch (err) { location.reload(); }
         delete form.dataset.sending;
-        var score = box.querySelector(".score");
-        score.textContent = v.score;
-        score.title = v.upvotes + " up / " + v.downvotes + " down";
-        box.setAttribute("data-my", v.my_vote);
-        box.querySelectorAll("form").forEach(function (f) {
-          var input = f.querySelector("input[name=score]"), btn = f.querySelector("button");
-          var dir = parseInt(btn.getAttribute("data-dir"), 10), on = v.my_vote === dir;
-          input.value = on ? 0 : dir;
-          btn.classList.toggle("on", on);
-          btn.title = on ? (dir > 0 ? "You liked this (click to undo)" : "You disliked this (click to undo)")
-                         : (dir > 0 ? "Thumbs up" : "Thumbs down");
-        });
-      })
-      .catch(function () { form.submit(); });
+      }, function () { form.submit(); });  // the request failed: let the normal form show what's wrong
   });
+
+  function showVote(box, v) {
+    var score = box.querySelector(".score");
+    score.textContent = v.score;
+    score.title = v.upvotes + " up / " + v.downvotes + " down";
+    box.setAttribute("data-my", v.my_vote);
+    box.querySelectorAll("form").forEach(function (f) {
+      var input = f.querySelector("input[name=score]"), btn = f.querySelector("button");
+      var dir = parseInt(btn.getAttribute("data-dir"), 10), on = v.my_vote === dir;
+      input.value = on ? 0 : dir;
+      btn.classList.toggle("on", on);
+      btn.title = on ? (dir > 0 ? "You liked this (click to undo)" : "You disliked this (click to undo)")
+                     : (dir > 0 ? "Thumbs up" : "Thumbs down");
+    });
+  }
+
+  // Event times are typed in the visitor's own timezone: tell the server which one that is
+  try {
+    var tzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    document.querySelectorAll("input.tzfield").forEach(function (i) { if (!i.value) i.value = tzName; });
+  } catch (err) { /* the server's timezone is used instead */ }
 
   // Theme picker in the footer: switch as soon as one is chosen
   document.querySelectorAll(".themepick").forEach(function (f) {

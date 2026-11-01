@@ -58,6 +58,7 @@
   <tr>
     <td class="row1 gensmall">{{ m.votes('post', p.id, pv.counts, pv.my_vote) }}
       &nbsp; <a href="{{ p.ap_id|url }}" rel="nofollow noopener">Original</a>
+      {{ m.save_btn('post', p.id, pv.saved) }}
       {{ m.useractions('post', p.id, pv.creator, p.deleted) }}
       {% if can_mod(pv.community.id) %}&nbsp;|&nbsp; {{ m.modbar('post', p.id, p, pv.community.id, pv.creator.id) }}{% endif %}</td>
   </tr>
@@ -96,6 +97,7 @@
   <tr>
     <td class="{{ loop.cycle('row2', 'row1') }} gensmall">{{ m.votes('comment', cm.id, c.counts, c.my_vote) }}
       {% if cm.distinguished %}&nbsp;<b>[mod]</b>{% endif %}
+      {{ m.save_btn('comment', cm.id, c.saved) }}
       {{ m.useractions('comment', cm.id, c.creator, cm.deleted) }}
       {% if can_mod(pv.community.id) %}&nbsp;|&nbsp; {{ m.modbar('comment', cm.id, cm, pv.community.id, c.creator.id) }}{% endif %}</td>
   </tr>

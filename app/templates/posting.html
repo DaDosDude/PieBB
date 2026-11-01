@@ -41,6 +41,26 @@
         <span class="gensmall">PNG, JPEG, GIF or WebP, max 10 MB</span></td>
       <td class="row2 gen"><input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
         <input type="submit" name="upload" value="Upload" formnovalidate></td></tr>
+  {% if mode == 'topic' %}
+  <tr><td class="row1" valign="top"><b class="gen">Poll</b><br><span class="gensmall">optional</span></td>
+      <td class="row2 gen"><details{% if form.poll_text.strip() %} open{% endif %}><summary>Add a poll</summary>
+        <textarea name="poll_text" rows="4" placeholder="One option per line (2 to 10)">{{ form.poll_text }}</textarea><br>
+        <label><input type="radio" name="poll_mode" value="single"{% if form.poll_mode != 'multiple' %} checked{% endif %}> One choice</label>
+        <label><input type="radio" name="poll_mode" value="multiple"{% if form.poll_mode == 'multiple' %} checked{% endif %}> Multiple choices</label>
+        &nbsp; Runs for <select name="poll_days">{% for d in poll_days %}<option value="{{ d }}"{% if d == form.poll_days %} selected{% endif %}>{{ d }} day{{ 's' if d != 1 }}</option>{% endfor %}</select>
+      </details></td></tr>
+  <tr><td class="row1" valign="top"><b class="gen">Event</b><br><span class="gensmall">optional</span></td>
+      <td class="row2 gen"><details{% if form.ev_start or form.ev_end or form.ev_link or form.ev_max %} open{% endif %}><summary>Make this an event</summary>
+        <input type="hidden" name="tz" value="{{ form.tz }}" class="tzfield">
+        <table class="gen evfields">
+          <tr><td>Starts</td><td><input type="datetime-local" name="ev_start" value="{{ form.ev_start }}"></td></tr>
+          <tr><td>Ends</td><td><input type="datetime-local" name="ev_end" value="{{ form.ev_end }}"></td></tr>
+          <tr><td>Online link</td><td><input type="url" name="ev_link" value="{{ form.ev_link }}" placeholder="optional"></td></tr>
+          <tr><td>Max. attendees</td><td><input type="number" name="ev_max" min="0" value="{{ form.ev_max }}" placeholder="no limit" style="width:90px"></td></tr>
+        </table>
+        <span class="gensmall">Times are in your own timezone.</span>
+      </details></td></tr>
+  {% endif %}
   {% if topic_like %}
   <tr><td class="row1"><b class="gen">Options</b></td>
       <td class="row2 gen"><label><input type="checkbox" name="nsfw" value="1"{% if form.nsfw %} checked{% endif %}> Mark as NSFW</label></td></tr>

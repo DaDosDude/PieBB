@@ -37,11 +37,19 @@ def themes_dir():
 
 
 def _meta(slug):
+    """An installed theme's piebb-theme.json, or None if missing or damaged (the theme menu is on every
+    page, so one broken theme folder must not break the site)."""
     try:
         with open(os.path.join(themes_dir(), slug, "piebb-theme.json")) as f:
-            return json.load(f)
+            meta = json.load(f)
     except (OSError, ValueError):
         return None
+    if not isinstance(meta, dict) or not isinstance(meta.get("name"), str):
+        return None
+    css, images = meta.get("css"), meta.get("images")
+    meta["css"] = [c for c in css if isinstance(c, str)] if isinstance(css, list) else []
+    meta["images"] = {k: v for k, v in images.items() if isinstance(v, str)} if isinstance(images, dict) else {}
+    return meta
 
 
 def available():
@@ -67,7 +75,8 @@ def chosen():
 
 
 def current():
-    """Context for templates: stylesheet URLs and image lookup for the active theme."""
+    """Context for templates: stylesheet URLs and image lookup for the active theme (the visitor's own
+    pick, or the site default), plus what the footer's theme menu needs."""
     site_default = settings.get("theme") or "subsilver"
     picked = chosen()
     slug = picked or site_default

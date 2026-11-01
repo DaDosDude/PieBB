@@ -108,7 +108,7 @@ def layout():
                 pass
             entry["hidden"] = not request.form.get(f"show:{key}")
             new[key] = entry
-        # keep entries for items not currently listed (e.g. communities hidden from the flat list)
+        # keep entries for items not on this page (e.g. a community PieFed no longer lists in any topic)
         merged = dict(settings.get("layout"))
         merged.update(new)
         settings.update(layout=merged)

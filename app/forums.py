@@ -55,13 +55,14 @@ def _categories(tree, kind, default_hidden, loose_key, loose_name, offset):
     return cats
 
 
-def build_index(include_hidden=False):
+def build_index(include_hidden=False, blocked=frozenset()):
     topic_cats = _categories(piefed.topic_tree(), "topic", False, "group:topics", "Topics", 0)
     feed_offset = -1000 if settings.get("feeds_position") == "before" else 1000
     feed_cats = _categories(piefed.feed_tree(), "feed", True, "group:feeds", "Feeds", feed_offset)
     cats = topic_cats + feed_cats
     for cat in cats:
         _arrange(cat, include_hidden)
+        _drop_blocked(cat, blocked)
     cats.sort(key=lambda c: c["order"])
     if not include_hidden:
         cats = [c for c in cats if not c["hidden"] and c["rows"]]
@@ -81,11 +82,21 @@ def _arrange(group, include_hidden):
             r["rows"] = [x for x in sub if not x["hidden"]]
 
 
-def subforum_rows(node, kind):
+def _drop_blocked(group, blocked):
+    """Leave out the communities the visitor has blocked (in the group and in its subcategories)."""
+    if not blocked:
+        return
+    group["rows"] = [r for r in group["rows"] if r.get("community_id") not in blocked]
+    for r in group["rows"]:
+        r["rows"] = [x for x in r.get("rows", []) if x.get("community_id") not in blocked]
+
+
+def subforum_rows(node, kind, blocked=frozenset()):
     """The Subforums table of a topic/feed page: the same rows (counts, last post, activity order,
     "more" links under subtopics) as that topic's category on the index, with all its own communities."""
     group = {"rows": _node_rows(node, kind, False), "url": None}
     _arrange(group, False)
+    _drop_blocked(group, blocked)
     _attach_stats([group])
     return group["rows"]
 

@@ -26,7 +26,7 @@ def i(v, default=None):
         return int(v) if math.isfinite(v) else default  # JSON may carry NaN/Infinity
     if isinstance(v, str):
         try:
-            return int(v.strip(), 10)  # "--5" or "²" pass isdigit() checks but aren't numbers
+            return int(v.strip(), 10)  # junk like "--5" or "²" raises and becomes the default
         except ValueError:
             return default
     return default
@@ -194,6 +194,15 @@ def site(r):
     return out
 
 
+def user_me(r):
+    """/user/me: the account's own block lists (PieFed's /site leaves them empty)."""
+    r = d(r)
+    return {"person_blocks": [x for x in (person(d(v).get("target")) for v in lst(r.get("person_blocks")))
+                              if x["id"] is not None],
+            "community_blocks": [x for x in (community(d(v).get("community")) for v in lst(r.get("community_blocks")))
+                                 if x["id"] is not None]}
+
+
 def _resp(**fields):
     """Normaliser for a response object: each listed key through its own function."""
     def norm(r):
@@ -356,6 +365,7 @@ def _registrations(items):
 
 NORMALIZERS = {
     "/site": site,
+    "/user/me": user_me,
     "/post": _resp(post_view=post_view, community_view=community_view, moderators=moderator_views),
     "/post/list": _resp(posts=_post_list),
     "/comment": _resp(comment_view=comment_view),
@@ -375,6 +385,8 @@ NORMALIZERS = {
     "/private_message": _resp(private_message_view=private_message_view),
     "/post/poll_vote": _resp(post_view=post_view),
     "/post/like": _resp(post_view=post_view),
+    "/post/save": _resp(post_view=post_view),
+    "/comment/save": _resp(comment_view=comment_view),
     "/comment/like": _resp(comment_view=comment_view),
     "/post/delete": _resp(post_view=post_view),
     "/comment/delete": _resp(comment_view=comment_view),

@@ -10,4 +10,8 @@
 {% endblock %}
 {% block content %}
 {{ fr.forum_table('Forum', cats) }}
+{% if blocked_count %}
+<p class="gensmall right">{{ blocked_count }} forum{{ 's' if blocked_count != 1 }} you blocked {{ 'is' if blocked_count == 1 else 'are' }} hidden &middot;
+  <a href="{{ url_for('bb.blocked') }}">Show or unblock</a></p>
+{% endif %}
 {% endblock %}

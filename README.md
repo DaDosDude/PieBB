@@ -11,16 +11,16 @@ and comments become replies. Replies are shown flat and in order, each quoting t
 
 - **Forum index:** categories with subcategories, topic/post/member counts and a Last Post column.
   Communities sort by latest activity. There's also a flat forum list.
-- **Topic lists:** newest first, with phpBB-style paging (First / Last / page numbers / jump to page).
+- **Topic lists:** the first page is ordered by latest reply, like phpBB, with phpBB-style paging (First / Last / page numbers / jump to page).
 - **Threads:** flat replies with quotes, polls, events, galleries and spoilers. Bare image links display as images.
-- **Posting:** new topics, replies, quick reply, edit and delete, preview, a formatting toolbar and image upload.
-- **Members:** votes, subscriptions, reports, notifications, private messages, unread topics and mark-as-read.
+- **Posting:** new topics (with an optional poll or event), replies, quick reply, edit and delete, preview, a formatting toolbar and image upload.
+- **Members:** votes, subscriptions, saved posts, blocking, reports, notifications, private messages, unread topics and mark-as-read.
 - **Moderator CP:** lock, sticky, remove, ban, reports and the mod log, for PieFed community moderators.
 - **phpBB2 themes:** upload a phpBB2 style zip (e.g. from a phpBB2 styles archive) in the admin panel.
   PieBB reads its `theme_info.cfg` colours, stylesheet and images (folder icons, buttons). Built-in themes:
   subSilver and a dark Charcoal theme. Visitors can pick any installed theme from the footer (admins can turn this off).
 - **Admin panel:** for PieFed site admins. Forum settings, a category layout editor (rename, hide, reorder),
-  themes and custom CSS.
+  sign-up approvals, reports and the mod log, themes and custom CSS.
 - **Privacy:** an image proxy so other instances don't see your visitors' IPs, a strict CSP and CSRF protection.
 - **Times:** shown in each visitor's own timezone. The layout works on mobile.
 
@@ -52,8 +52,11 @@ Settings live in `.env` (see `.env.example`):
 | `PIEFED_URL` | Public URL of your PieFed instance (required) |
 | `SECRET_KEY` | Random secret for sessions and image-proxy signatures (required) |
 | `PIEFED_API_BASE` / `PIEFED_HOST_HEADER` | Reach PieFed directly (e.g. `http://127.0.0.1:8030`) instead of through the proxy |
-| `FORUM_TITLE`, `TIMEZONE` | Defaults. Most of these can also be changed in the admin panel |
-| `LOGIN_REQUIRED` | `1` = guests only see the login page |
+| `FORUM_TITLE` | Forum name (default: the PieFed site name). Can also be changed in the admin panel |
+| `LOGIN_REQUIRED` | `1` = guests only see the login page. Can also be changed in the admin panel |
+| `TIMEZONE` | Timezone for dates until the visitor's browser shows them in their own (default `Europe/Amsterdam`) |
+| `PIEFED_TIMEOUT` | Seconds to wait for PieFed (default `15`) |
+| `SECURE_COOKIES` | `1` (default); `0` only for testing over plain http |
 | `GUEST_RATE_LIMIT` | Page loads per minute per IP for guests (default `60`, `0` = off) |
 | `IMAGE_PROXY` | `1` (default) = load remote images through PieBB |
 

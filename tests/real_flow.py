@@ -392,6 +392,79 @@ if cl:
     box = th[th.find(f'/vote/comment/{vc}') - 200:]
     check("undone vote shows as not voted", 'data-my="0"' in box[:400])
 
+# ---------------- topics ordered by latest reply, phpBB-style (new topics without replies included)
+cid = requests.get(PF + "/community", params={"name": "retrogaming"}).json()["community_view"]["community"]["id"]
+allp = requests.get(PF + "/post/list", params={"community_id": cid, "sort": "New", "limit": 50}).json()["posts"]
+oldest = min((p for p in allp if not p["post"]["sticky"]), key=lambda p: p["post"]["published"])["post"]["id"]
+before = requests.get(PF + "/post", params={"id": oldest}).json()["post_view"]["counts"]["comments"]
+r = mod.post(BB + f"/p/{oldest}/reply", data={"csrf": csrf(mod, f"/p/{oldest}"), "body": "bump"})
+bumped = requests.get(PF + "/post", params={"id": oldest}).json()["post_view"]["counts"]["comments"] > before
+t = csrf(user, "/c/retrogaming")
+r = user.post(BB + "/c/retrogaming/new", data={"csrf": t, "title": "Brand new, no replies", "body": "x"})
+fresh = re.search(r"/p/(\d+)", r.url).group(1)
+listing = user.get(BB + "/c/retrogaming").text  # logged in: guest pages are cached for 30 s
+order = re.findall(r'class="topictitle" href="/p/(\d+)"', listing)
+check("new topic without replies is listed first", order and order[0] == fresh, order[:4])
+check("old topic with a fresh reply is bumped above older activity", not bumped or str(oldest) in order[:2],
+      (oldest, bumped, order[:4], flashes(r)))
+check("each topic listed once", len(order) == len(set(order)), order)
+
+# ---------------- polls and events on new topics
+check("poll duration menu filled", '<option value="7">7 days</option>' in user.get(BB + "/c/retrogaming/new").text)
+t = csrf(user, "/c/retrogaming/new")
+r = user.post(BB + "/c/retrogaming/new", data={"csrf": t, "title": "Best console?", "body": "vote",
+                                                "poll_text": "SNES\nMega Drive\n\nPC Engine", "poll_mode": "single", "poll_days": "7"})
+check("poll topic created", "/p/" in r.url and "Mega Drive" in r.text and 'name="choice"' in r.text, r.url)
+pv = requests.get(PF + "/post", params={"id": re.search(r"/p/(\d+)", r.url).group(1)}).json()["post_view"]["post"] if "/p/" in r.url else {}
+check("poll has 3 options in PieFed", len(((pv.get("poll") or {}).get("choices")) or []) == 3, pv.get("poll"))
+r = user.post(BB + "/c/retrogaming/new", data={"csrf": t, "title": "One option", "poll_text": "only"})
+check("poll with one option refused", "at least two options" in r.text)
+t = csrf(admin, "/c/retrogaming/new")
+for attempt in range(3):  # PieFed rate-limits new topics; this test makes several in a row
+    r = admin.post(BB + "/c/retrogaming/new", data={"csrf": t, "title": "LAN party", "body": "come",
+                                                    "ev_start": "2026-12-05T19:00", "ev_end": "2026-12-05T23:30",
+                                                    "ev_link": "https://example.com/lan", "ev_max": "20", "tz": "Europe/Amsterdam"})
+    if "rate-limiting" not in r.text:
+        break
+    time.sleep(40)
+check("event topic created", "/p/" in r.url and "Starts" in r.text and "Going" in r.text, r.url)
+ev = requests.get(PF + "/post", params={"id": re.search(r"/p/(\d+)", r.url).group(1)}).json()["post_view"]["post"].get("event") if "/p/" in r.url else {}
+check("event start converted to UTC", (ev or {}).get("start", "").startswith("2026-12-05T18:00"), ev)
+r = admin.post(BB + "/c/retrogaming/new", data={"csrf": t, "title": "Backwards", "ev_start": "2026-12-05T19:00", "ev_end": "2026-12-05T18:00"})
+check("event ending before it starts refused", "end before it starts" in r.text)
+
+# ---------------- saved posts
+t = csrf(user, f"/p/{NEW}")
+r = user.post(BB + f"/save/post/{NEW}", data={"csrf": t, "save": "1"}, headers={"Referer": BB + f"/p/{NEW}"})
+check("save topic", "Saved." in r.text)
+check("saved topic listed", f'href="/p/{NEW}"' in user.get(BB + "/saved").text)
+user.post(BB + f"/save/post/{NEW}", data={"csrf": t, "save": "0"}, headers={"Referer": BB + f"/p/{NEW}"})
+check("unsaved topic gone", f'class="topictitle" href="/p/{NEW}"' not in user.get(BB + "/saved").text)
+cl = requests.get(PF + "/comment/list", params={"post_id": NEW, "sort": "Old", "limit": 1}).json()["comments"]
+if cl:
+    sc = cl[0]["comment"]["id"]
+    user.post(BB + f"/save/comment/{sc}", data={"csrf": t, "save": "1"})
+    check("saved reply listed", f"/comment/{sc}" in user.get(BB + "/saved?show=posts").text)
+    user.post(BB + f"/save/comment/{sc}", data={"csrf": t, "save": "0"})
+
+# ---------------- blocking
+vid = requests.get(PF + "/user", params={"username": "victim"}).json()["person_view"]["person"]["id"]
+t = csrf(user, "/u/victim")
+r = user.post(BB + f"/block/user/{vid}", data={"csrf": t, "block": "1"})
+check("block user", "User blocked" in r.text)
+check("blocked user listed", "victim" in user.get(BB + "/blocked").text and "Unblock user" in user.get(BB + "/u/victim").text)
+user.post(BB + f"/block/user/{vid}", data={"csrf": t, "block": "0"})
+check("unblock user", "Block user" in user.get(BB + "/u/victim").text)
+r = user.post(BB + f"/block/community/{cid}", data={"csrf": t, "block": "1"})
+check("block forum", "Forum blocked" in r.text and "retro" in user.get(BB + "/blocked").text.lower())
+check("blocked forum left off your front page", 'class="forumlink" href="/c/retrogaming"' not in user.get(BB + "/").text)
+check("front page says a blocked forum is hidden, with a way to unblock",
+      "you blocked is hidden" in user.get(BB + "/").text and 'href="/blocked"' in user.get(BB + "/").text)
+check("others still see it", 'class="forumlink" href="/c/retrogaming"' in victim.get(BB + "/").text)
+user.post(BB + f"/block/community/{cid}", data={"csrf": t, "block": "0"})
+check("unblocked forum back on the front page", 'class="forumlink" href="/c/retrogaming"' in user.get(BB + "/").text)
+check("unblock forum", "You haven't blocked any forums" in user.get(BB + "/blocked").text)
+
 # ---------------- logout revokes the PieFed token
 tok_before = admin.cookies.get("piebb")
 admin.post(BB + "/logout", data={"csrf": csrf(admin)})

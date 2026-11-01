@@ -207,3 +207,20 @@
   <button type="button" data-md="spoiler" title="Spoiler">Spoiler</button>
 </div>
 {% endmacro %}
+
+{% macro save_btn(kind, obj_id, saved) %}
+{% if logged_in %}&nbsp;|&nbsp;
+<form class="inline" method="post" action="{{ url_for('bb.save', kind=kind, obj_id=obj_id) }}">{{ csrf() }}
+  <input type="hidden" name="save" value="{{ '0' if saved else '1' }}">
+  <button class="btnlink{{ ' on' if saved }}" title="{{ 'Remove from your saved posts' if saved else 'Keep this in your saved posts' }}">{{ 'Saved' if saved else 'Save' }}</button></form>
+{% endif %}
+{% endmacro %}
+
+{% macro block_btn(kind, obj_id, is_blocked, label) %}
+{% if logged_in %}
+<form class="inline" method="post" action="{{ url_for('bb.block', kind=kind, obj_id=obj_id) }}"
+      {% if not is_blocked %}onsubmit="return confirm({{ ('Block ' ~ label ~ '?')|tojson|forceescape }})"{% endif %}>{{ csrf() }}
+  <input type="hidden" name="block" value="{{ '0' if is_blocked else '1' }}">
+  <button class="btn">{{ 'Unblock' if is_blocked else 'Block' }}{{ ' ' ~ ('user' if kind == 'user' else 'forum') }}</button></form>
+{% endif %}
+{% endmacro %}

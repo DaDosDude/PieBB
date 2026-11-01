@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Saved posts :: {% endblock %}
+{% block content %}
+<table width="100%"><tr>
+  <td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Saved posts</td>
+  <td class="right gensmall tabs">
+    <a class="{{ 'on' if show == 'topics' }}" href="{{ url_for('bb.saved') }}">Topics</a>
+    <a class="{{ 'on' if show == 'posts' }}" href="{{ url_for('bb.saved', show='posts') }}">Replies</a>
+  </td>
+</tr></table>
+{% if show == 'topics' %}
+<table class="forumline">
+  {{ m.post_table_head('Saved topics') }}
+  {{ m.post_rows(items, True) }}
+  {% if not items %}<tr><td class="row1 center gen" colspan="6">No saved topics{{ ' on this page' if page > 1 }}. Use "Save" under a topic to keep it here.</td></tr>{% endif %}
+</table>
+{% else %}
+<table class="forumline">
+  <tr><th colspan="2">Saved replies</th></tr>
+  {% for c in items %}
+  <tr><td class="row2 gensmall" width="25%" valign="top"><a href="{{ url_for('bb.comment_link', comment_id=c.comment.id) }}">Re: {{ c.post.title|truncate(50, True) }}</a><br>
+      by {{ c.creator|pname }}<br>{{ c.comment.published|bbdate }}</td>
+    <td class="row1 postbody">{{ c.comment.body|plain|truncate(400, True) }}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">No saved replies{{ ' on this page' if page > 1 }}. Use "Save" under a reply to keep it here.</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endblock %}

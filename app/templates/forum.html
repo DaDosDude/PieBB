@@ -30,6 +30,7 @@
     {% if kind == 'community' %}
       {% if not cv.community.restricted_to_mods %}{{ m.button('post_new', 'New Topic', url_for('bb.new_topic', name=cv.community|cref)) }}{% endif %}
       {{ m.follow_btn(cv) }}
+      {{ m.block_btn('community', cv.community.id, cv.blocked, cv.community.title) }}
     {% endif %}
   </td>
   <td class="nav right"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>

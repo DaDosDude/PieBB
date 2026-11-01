@@ -1,10 +1,11 @@
-"""Routes added on top of the core forum views: editing, deleting, reporting, polls,
-notifications, private messages, unread topics and the moderator control panel."""
+"""Routes added on top of the core forum views: editing, deleting, reporting, poll votes,
+notifications, private messages, unread topics, saved posts, blocking and the moderator control panel."""
 from flask import abort, flash, redirect, render_template, request, url_for
 
 from . import piefed
 from .piefed import ApiError
-from .views import (attach_upload, back, bp, logged_in, me_info, page_arg, require_login, safe_target)
+from .views import (attach_upload, back, bp, logged_in, me_info, page_arg, recent_blocks, remember_block,
+                    require_login, safe_target)
 
 REPORT_REASONS = ["Spam", "Harassment or abuse", "Hate speech", "Misinformation", "NSFW not marked",
                   "Off-topic", "Breaks the forum rules", "Other"]
@@ -274,6 +275,7 @@ UNREAD_SCAN_PAGES = 3
 def unread():
     if (r := require_login()):
         return r
+    # unread topics, or topics with new replies, among the newest in the user's subscribed forums
     posts = []
     for page in range(1, UNREAD_SCAN_PAGES + 1):
         batch = piefed.get("/post/list", cache=False, type_="Subscribed", sort="New", page=page,
@@ -282,6 +284,88 @@ def unread():
         if len(batch) < 50:
             break
     return render_template("unread.html", posts=posts, scanned=UNREAD_SCAN_PAGES * 50)
+
+
+# ---- saved posts -------------------------------------------------------------------
+
+@bp.route("/save/<kind>/<int:obj_id>", methods=["POST"])
+def save(kind, obj_id):
+    if (r := require_login()):
+        return r
+    if kind not in ("post", "comment"):
+        abort(400)
+    saving = request.form.get("save") != "0"
+    piefed.post(f"/{kind}/save", {f"{kind}_id": obj_id, "save": saving}, method="PUT")
+    flash(("Saved." if saving else "Removed from your saved posts."))
+    anchor = ("#p" if kind == "post" else "#c") + str(obj_id)
+    return redirect(safe_target(request.form.get("next") or request.referrer, url_for("bb.saved")) + anchor)
+
+
+SAVED_PER_PAGE = 25
+
+
+@bp.route("/saved")
+def saved():
+    if (r := require_login()):
+        return r
+    show = "posts" if request.args.get("show") == "posts" else "topics"
+    page = page_arg()
+    if show == "topics":
+        items = piefed.get("/post/list", cache=False, saved_only="true", sort="New", page=page,
+                           limit=SAVED_PER_PAGE).get("posts") or []
+    else:
+        items = piefed.get("/comment/list", cache=False, saved_only="true", sort="New", page=page,
+                           limit=SAVED_PER_PAGE).get("comments") or []
+    return render_template("saved.html", show=show, items=items, page=page, has_next=len(items) >= SAVED_PER_PAGE)
+
+
+# ---- blocking ----------------------------------------------------------------------
+
+@bp.route("/block/<kind>/<int:obj_id>", methods=["POST"])
+def block(kind, obj_id):
+    if (r := require_login()):
+        return r
+    if kind not in ("user", "community"):
+        abort(400)
+    me, _, _ = _me()
+    if kind == "user" and obj_id == me.get("id"):
+        abort(400, "You can't block yourself.")
+    blocking = request.form.get("block") != "0"
+    key = "person_id" if kind == "user" else "community_id"
+    piefed.post(f"/{kind}/block", {key: obj_id, "block": blocking})
+    remember_block(kind, obj_id, blocking)
+    what = "User" if kind == "user" else "Forum"
+    flash(f"{what} blocked: you won't see their posts any more." if blocking and kind == "user"
+          else f"{what} blocked: its topics are hidden from your lists." if blocking
+          else f"{what} unblocked.")
+    return back(url_for("bb.blocked"))
+
+
+@bp.route("/blocked")
+def blocked():
+    if (r := require_login()):
+        return r
+    my = piefed.get("/user/me", cache=False)
+    people = _with_recent(my.get("person_blocks") or [], "user", "/user", "person_id", "person_view", "person")
+    communities = _with_recent(my.get("community_blocks") or [], "community", "/community", "id",
+                               "community_view", "community")
+    return render_template("blocked.html", people=people, communities=communities)
+
+
+def _with_recent(items, kind, path, param, view_key, obj_key):
+    """PieFed's block list with the visitor's own changes of the last minutes applied (its list lags)."""
+    recent = recent_blocks(kind)
+    out = [x for x in items if recent.get(x["id"], True)]
+    have = {x["id"] for x in out}
+    for obj_id, now_blocked in recent.items():
+        if now_blocked and obj_id not in have:
+            try:
+                obj = (piefed.get(path, **{param: obj_id}).get(view_key) or {}).get(obj_key) or {}
+            except ApiError:
+                continue
+            if obj.get("id"):
+                out.append(obj)
+    return out
 
 
 @bp.route("/mark_read", methods=["POST"])

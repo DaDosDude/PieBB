@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Blocked :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Blocked users &amp; forums</td></tr></table>
+<table class="forumline">
+  <tr><th colspan="2">Blocked users</th></tr>
+  {% for u in people %}
+  <tr><td class="row1 gen" width="100%"><a href="{{ url_for('bb.profile', username=u|pref) }}">{{ u|pname }}</a> <span class="gensmall muted">{{ u|pref }}</span></td>
+      <td class="row2 center nowrap">{{ m.block_btn('user', u.id, True, u|pref) }}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">You haven't blocked anyone. Use "Block user" on a profile.</td></tr>
+  {% endfor %}
+</table>
+<br>
+<table class="forumline">
+  <tr><th colspan="2">Blocked forums</th></tr>
+  {% for c in communities %}
+  <tr><td class="row1 gen" width="100%"><a href="{{ url_for('bb.community', name=c|cref) }}">{{ c.title or c.name }}</a></td>
+      <td class="row2 center nowrap">{{ m.block_btn('community', c.id, True, c.title or c.name) }}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">You haven't blocked any forums. Use "Block forum" at the top of a forum.</td></tr>
+  {% endfor %}
+</table>
+<p class="gensmall">Blocking happens on {{ site.name or 'PieFed' }} itself, so it also applies in other apps you use with this account.</p>
+{% endblock %}
