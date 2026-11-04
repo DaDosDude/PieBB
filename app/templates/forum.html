@@ -27,10 +27,13 @@
 
 <table width="100%" style="margin-top:6px"><tr>
   <td>
+    {% if kind != 'community' and alert is not none %}{{ m.alert_btn(kind, topic.id, alert) }}{% endif %}
     {% if kind == 'community' %}
       {% if not cv.community.restricted_to_mods %}{{ m.button('post_new', 'New Topic', url_for('bb.new_topic', name=cv.community|cref)) }}{% endif %}
       {{ m.follow_btn(cv) }}
+      {% if logged_in %}{{ m.alert_btn('community', cv.community.id, cv.activity_alert) }}{% endif %}
       {{ m.block_btn('community', cv.community.id, cv.blocked, cv.community.title) }}
+      {% if can_mod(cv.community.id) and cv.community.local %}{{ m.button('forum_settings', 'Forum settings', url_for('bb.forum_settings', name=cv.community|cref), False) }}{% endif %}
     {% endif %}
   </td>
   <td class="nav right"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
@@ -38,6 +41,12 @@
     &raquo; {{ topic.name if kind != 'community' else cv.community.title }}
     {% if (pages or 0) > 1 or page > 1 or has_next %}<br>{{ m.pagination(page, has_next, pages) }}{% endif %}</td>
 </tr></table>
+{% if kind == 'community' %}
+<form class="forumsearch" method="get" action="{{ url_for('bb.search') }}">
+  <input type="hidden" name="community_id" value="{{ cv.community.id }}">
+  <input type="search" name="q" placeholder="Search this forum" aria-label="Search this forum"> <input type="submit" value="Search">
+</form>
+{% endif %}
 
 {% endblock %}
 {% block content %}

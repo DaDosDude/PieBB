@@ -28,8 +28,10 @@
   {% if topic_like %}
   <tr><td class="row1" width="22%"><b class="gen">Subject</b></td>
       <td class="row2"><input type="text" name="title" maxlength="300" value="{{ form.title }}" required></td></tr>
+  {% if not kind %}
   <tr><td class="row1"><b class="gen">Link</b><br><span class="gensmall">optional URL, or a link to an image</span></td>
       <td class="row2"><input type="url" name="url" value="{{ form.url }}"></td></tr>
+  {% endif %}
   {% else %}
   <tr><td class="row1" width="22%"><b class="gen">Subject</b></td>
       <td class="row2 gen">Re: {{ pv.post.title }}{% if parent_id %} <span class="gensmall muted">(reply to post #{{ parent_id }})</span>{% endif %}</td></tr>
@@ -41,16 +43,19 @@
         <span class="gensmall">PNG, JPEG, GIF or WebP, max 10 MB</span></td>
       <td class="row2 gen"><input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
         <input type="submit" name="upload" value="Upload" formnovalidate></td></tr>
-  {% if mode == 'topic' %}
-  <tr><td class="row1" valign="top"><b class="gen">Poll</b><br><span class="gensmall">optional</span></td>
-      <td class="row2 gen"><details{% if form.poll_text.strip() %} open{% endif %}><summary>Add a poll</summary>
+  {% if mode == 'topic' or kind == 'poll' %}
+  <tr><td class="row1" valign="top"><b class="gen">Poll</b><br><span class="gensmall">{{ 'optional' if mode == 'topic' else 'saving resets its votes' }}</span></td>
+      <td class="row2 gen"><details{% if form.poll_text.strip() or kind %} open{% endif %}><summary>{{ 'Add a poll' if mode == 'topic' else 'Poll' }}</summary>
         <textarea name="poll_text" rows="4" placeholder="One option per line (2 to 10)">{{ form.poll_text }}</textarea><br>
         <label><input type="radio" name="poll_mode" value="single"{% if form.poll_mode != 'multiple' %} checked{% endif %}> One choice</label>
         <label><input type="radio" name="poll_mode" value="multiple"{% if form.poll_mode == 'multiple' %} checked{% endif %}> Multiple choices</label>
-        &nbsp; Runs for <select name="poll_days">{% for d in poll_days %}<option value="{{ d }}"{% if d == form.poll_days %} selected{% endif %}>{{ d }} day{{ 's' if d != 1 }}</option>{% endfor %}</select>
+        &nbsp; Runs for {{ 'another' if kind }} <select name="poll_days">{% for d in poll_days %}<option value="{{ d }}"{% if d == form.poll_days %} selected{% endif %}>{{ d }} day{{ 's' if d != 1 }}</option>{% endfor %}</select>
+        {% if kind %}<br><span class="gensmall">PieFed clears all votes whenever a poll topic is edited.</span>{% endif %}
       </details></td></tr>
-  <tr><td class="row1" valign="top"><b class="gen">Event</b><br><span class="gensmall">optional</span></td>
-      <td class="row2 gen"><details{% if form.ev_start or form.ev_end or form.ev_link or form.ev_max %} open{% endif %}><summary>Make this an event</summary>
+  {% endif %}
+  {% if mode == 'topic' or kind == 'event' %}
+  <tr><td class="row1" valign="top"><b class="gen">Event</b><br><span class="gensmall">{{ 'optional' if mode == 'topic' else '' }}</span></td>
+      <td class="row2 gen"><details{% if form.ev_start or form.ev_end or form.ev_link or form.ev_max or kind %} open{% endif %}><summary>{{ 'Make this an event' if mode == 'topic' else 'Event' }}</summary>
         <input type="hidden" name="tz" value="{{ form.tz }}" class="tzfield">
         <table class="gen evfields">
           <tr><td>Starts</td><td><input type="datetime-local" name="ev_start" value="{{ form.ev_start }}"></td></tr>
@@ -58,8 +63,18 @@
           <tr><td>Online link</td><td><input type="url" name="ev_link" value="{{ form.ev_link }}" placeholder="optional"></td></tr>
           <tr><td>Max. attendees</td><td><input type="number" name="ev_max" min="0" value="{{ form.ev_max }}" placeholder="no limit" style="width:90px"></td></tr>
         </table>
-        <span class="gensmall">Times are in your own timezone.</span>
+        <span class="gensmall">{% if mode == 'topic' %}Times are in your own timezone.{% else %}Times are in {{ form.tz }}.{% endif %}</span>
       </details></td></tr>
+  {% endif %}
+  {% if topic_like and flairs %}
+  <tr><td class="row1"><b class="gen">Flair</b><br><span class="gensmall">optional</span></td>
+      <td class="row2 gen">{% for f in flairs %}<label class="flairpick"><input type="checkbox" name="flair" value="{{ f.id }}"{% if f.id in form.flair %} checked{% endif %}>
+        {{ m.flair(f) }}</label> {% endfor %}</td></tr>
+  {% endif %}
+  {% if topic_like and languages %}
+  <tr><td class="row1"><b class="gen">Language</b></td>
+      <td class="row2 gen"><select name="language_id"><option value="">{{ site.name or 'PieFed' }} default</option>
+        {% for l in languages %}<option value="{{ l.id }}"{% if l.id == form.language_id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}</select></td></tr>
   {% endif %}
   {% if topic_like %}
   <tr><td class="row1"><b class="gen">Options</b></td>

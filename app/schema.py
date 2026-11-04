@@ -69,7 +69,11 @@ def post(p):
             "nsfw": b(p.get("nsfw")), "ap_id": s(p.get("ap_id")), "local": b(p.get("local")),
             "sticky": b(p.get("sticky")), "alt_text": s(p.get("alt_text")), "thumbnail_url": s(p.get("thumbnail_url")),
             "post_type": s(p.get("post_type")) or "", "poll": poll(p.get("poll")), "event": event(p.get("event")),
-            "gallery": [u for u in (s(x) for x in lst(p.get("gallery"))) if u]}
+            "gallery": [u for u in (s(x) for x in lst(p.get("gallery"))) if u],
+            "language_id": i(p.get("language_id")),
+            "cross_posts": [x for x in ({"post_id": i(d(c).get("post_id")), "replies": i(d(c).get("reply_count"), 0),
+                                         "community": s(d(c).get("community_name")) or ""}
+                                        for c in lst(p.get("cross_posts"))) if x["post_id"] is not None]}
 
 
 def poll(v):
@@ -127,6 +131,18 @@ def _counts(c, *fields):
                                                   "newest_comment_time": s(c.get("newest_comment_time"))}
 
 
+def _color(v, default):
+    v = s(v) or ""
+    return v if len(v) in (4, 7) and v.startswith("#") and all(ch in "0123456789abcdefABCDEF" for ch in v[1:]) else default
+
+
+def flair_list(items):
+    return [{"id": i(d(f).get("id")), "title": s(d(f).get("flair_title")) or "",
+             "text_color": _color(d(f).get("text_color"), "#000000"),
+             "background_color": _color(d(f).get("background_color"), "#DEDDDA")}
+            for f in lst(items) if i(d(f).get("id")) is not None and s(d(f).get("flair_title"))]
+
+
 def _flags(v):
     return {k: b(v.get(k)) for k in ("creator_banned_from_community", "banned_from_community",
                                      "creator_is_moderator", "creator_is_admin", "saved", "read", "hidden")}
@@ -137,7 +153,8 @@ def post_view(v):
     return {"post": post(v.get("post")), "creator": person(v.get("creator")), "community": community(v.get("community")),
             "counts": _counts(v.get("counts"), "comments", "score", "upvotes", "downvotes"),
             "subscribed": s(v.get("subscribed")) or "NotSubscribed", "my_vote": i(v.get("my_vote"), 0),
-            "unread_comments": i(v.get("unread_comments"), 0)} | _flags(v)
+            "unread_comments": i(v.get("unread_comments"), 0), "activity_alert": b(v.get("activity_alert")),
+            "flair_list": flair_list(v.get("flair_list"))} | _flags(v)
 
 
 def comment_view(v):
@@ -155,7 +172,8 @@ def community_view(v):
     # members on every instance; subscriptions_count alone only counts this instance's own users
     counts["members"] = max(counts["total_subscriptions_count"], counts["subscriptions_count"])
     return {"community": community(v.get("community")), "subscribed": s(v.get("subscribed")) or "NotSubscribed",
-            "blocked": b(v.get("blocked")), "counts": counts}
+            "blocked": b(v.get("blocked")), "counts": counts, "flair_list": flair_list(v.get("flair_list")),
+            "activity_alert": b(v.get("activity_alert"))}
 
 
 def person_view(v):
@@ -186,7 +204,9 @@ def site(r):
     my = d(r.get("my_user"))
     out = {"site": {"name": s(st.get("name")), "description": s(st.get("description")),
                     "sidebar": s(st.get("sidebar_md")) or s(st.get("sidebar")), "icon": s(st.get("icon")),
-                    "user_count": i(st.get("user_count")), "enable_downvotes": dv if isinstance(dv, bool) else None},
+                    "user_count": i(st.get("user_count")), "enable_downvotes": dv if isinstance(dv, bool) else None,
+                    "languages": [{"id": i(d(x).get("id")), "name": s(d(x).get("name")) or ""}
+                                  for x in lst(st.get("all_languages")) if i(d(x).get("id")) is not None]},
            "admins": _views(r.get("admins"), person_view, "person"), "my_user": None}
     if my:
         out["my_user"] = {"local_user_view": {"person": person(d(my.get("local_user_view")).get("person"))},
@@ -194,10 +214,23 @@ def site(r):
     return out
 
 
+PM_SETTINGS = ("All", "Trusted", "Local", "None")
+VISIBILITY = ("Show", "Blur", "Hide", "Transparent")
+
+
 def user_me(r):
-    """/user/me: the account's own block lists (PieFed's /site leaves them empty)."""
+    """/user/me: the account's own profile, settings and block lists (PieFed's /site leaves the
+    block lists empty)."""
     r = d(r)
-    return {"person_blocks": [x for x in (person(d(v).get("target")) for v in lst(r.get("person_blocks")))
+    lv = d(r.get("local_user_view"))
+    lu = d(lv.get("local_user"))
+    pm, nsfw = s(lu.get("accept_private_messages")), s(lu.get("nsfw_visibility"))
+    return {"person": person(lv.get("person")),
+            "settings": {"accept_private_messages": pm if pm in PM_SETTINGS else "All",
+                         "nsfw_visibility": nsfw if nsfw in VISIBILITY else ("Show" if b(lu.get("show_nsfw")) else "Hide"),
+                         "show_read_posts": lu.get("show_read_posts") is not False,
+                         "email_unread": b(lu.get("email_unread"))},
+            "person_blocks": [x for x in (person(d(v).get("target")) for v in lst(r.get("person_blocks")))
                               if x["id"] is not None],
             "community_blocks": [x for x in (community(d(v).get("community")) for v in lst(r.get("community_blocks")))
                                  if x["id"] is not None]}
@@ -366,11 +399,19 @@ def _registrations(items):
 NORMALIZERS = {
     "/site": site,
     "/user/me": user_me,
+    "/user/activity_alert/list": lambda r: {key: [x for x in (i(d(v).get("id")) for v in lst(d(r).get(key))) if x is not None]
+                                            for key in ("topics", "feeds")},
     "/post": _resp(post_view=post_view, community_view=community_view, moderators=moderator_views),
     "/post/list": _resp(posts=_post_list),
     "/comment": _resp(comment_view=comment_view),
     "/comment/list": _resp(comments=_comment_list),
-    "/community": _resp(community_view=community_view, moderators=moderator_views),
+    "/community": _resp(community_view=community_view, moderators=moderator_views,
+                        discussion_languages=lambda v: [x for x in (i(d(y).get("id")) if isinstance(y, dict) else i(y)
+                                                                    for y in lst(v)) if x is not None]),
+    "/community/moderate/bans": _resp(items=lambda v: [
+        {"user": person(d(x).get("banned_user")), "by": person(d(x).get("banned_by")), "reason": s(d(x).get("reason")),
+         "expires": s(d(x).get("expires_at")), "expired": b(d(x).get("expired"))}
+        for x in lst(v) if person(d(x).get("banned_user"))["id"] is not None], next_page=s),
     "/community/list": _resp(communities=_community_list),
     "/user": _resp(person_view=person_view, posts=_post_list, comments=_comment_list, moderates=moderator_views),
     "/search": _resp(posts=_post_list, comments=_comment_list, communities=_community_list, users=_person_list),
@@ -390,7 +431,6 @@ NORMALIZERS = {
     "/comment/like": _resp(comment_view=comment_view),
     "/post/delete": _resp(post_view=post_view),
     "/comment/delete": _resp(comment_view=comment_view),
-    "/upload/image": _resp(url=s),
     "/admin/registration_application/list": _resp(registrations=_registrations),
 }
 

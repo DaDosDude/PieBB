@@ -20,10 +20,16 @@
 
 {% block pagehead %}
 <a class="maintitle" style="font-size:20px" href="{{ url_for('bb.thread', post_id=p.id) }}">{{ p.title }}</a>
+{% for f in pv.flair_list %}{{ m.flair(f) }} {% endfor %}
 
 <table width="100%" style="margin-top:6px"><tr>
   <td class="nowrap">
     {% if not p.locked %}{{ m.button('reply_new', 'Post Reply', url_for('bb.reply', post_id=p.id)) }}{% else %}{% if theme.img('reply_locked') %}<img src="{{ theme.img('reply_locked') }}" alt="Topic Locked">{% else %}<span class="btn main">Topic Locked</span>{% endif %}{% endif %}
+    {% if logged_in %}
+    <form class="inline" method="post" action="{{ url_for('bb.follow_topic', post_id=p.id) }}">{{ m.csrf() }}
+      <input type="hidden" name="follow" value="{{ '0' if pv.activity_alert else '1' }}">
+      <button class="btn" title="{{ 'Stop notifications about new replies' if pv.activity_alert else 'Get a notification when someone replies' }}">{{ 'Unfollow topic' if pv.activity_alert else 'Follow topic' }}</button></form>
+    {% endif %}
   </td>
   <td class="nav right"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
     &raquo; <a href="{{ url_for('bb.community', name=pv.community|cref) }}">{{ pv.community.title }}</a>
@@ -52,6 +58,8 @@
         {% endif %}
         {% if p.deleted %}<i class="muted">[deleted by its author]</i>{% else %}{{ p.body|md }}{{ m.post_extras(p) }}{% endif %}
       </div>
+      {% if p.cross_posts %}<div class="gensmall crossposts">Also posted in:
+        {% for x in p.cross_posts %}<a href="{{ url_for('bb.thread', post_id=x.post_id) }}">{{ x.community or ('topic #' ~ x.post_id) }}</a> ({{ x.replies }} repl{{ 'y' if x.replies == 1 else 'ies' }}){{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
       {% if p.removed %}<div class="flash">This topic has been removed by a moderator.</div>{% endif %}
     </td>
   </tr>
@@ -59,6 +67,7 @@
     <td class="row1 gensmall">{{ m.votes('post', p.id, pv.counts, pv.my_vote) }}
       &nbsp; <a href="{{ p.ap_id|url }}" rel="nofollow noopener">Original</a>
       {{ m.save_btn('post', p.id, pv.saved) }}
+      {% if logged_in %}&nbsp;|&nbsp; <a href="{{ url_for('bb.crosspost', post_id=p.id) }}" title="Post this topic in another forum too">Crosspost</a>{% endif %}
       {{ m.useractions('post', p.id, pv.creator, p.deleted) }}
       {% if can_mod(pv.community.id) %}&nbsp;|&nbsp; {{ m.modbar('post', p.id, p, pv.community.id, pv.creator.id) }}{% endif %}</td>
   </tr>

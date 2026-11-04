@@ -39,9 +39,25 @@ def check_csrf():
         sent, expected = request.form.get("csrf") or "", session.get("csrf") or ""
         if not expected or not secrets.compare_digest(sent, expected):
             abort(400, "Form expired, go back and try again.")
-    if settings.get("login_required") and not session.get("jwt") \
-            and request.endpoint not in ("bb.login", "static", "theme_file", "custom_css", "guard.robots", "img.image"):
+    if not session.get("jwt") \
+            and request.endpoint not in ("bb.login", "static", "theme_file", "custom_css", "guard.robots", "img.image") \
+            and (settings.get("login_required") or _private_for_guests()):
+        if piefed.instance_is_private():
+            flash(piefed.PRIVATE_MESSAGE)
         return redirect(url_for("bb.login", next=request.full_path))
+
+
+def _private_for_guests():
+    """Whether a guest must be sent to the login page because PieFed is a private instance. Asking
+    PieFed's /site (cached 30 s, shared by all guests) notices when an admin makes the instance private,
+    before a guest could be shown pages from PieBB's own cache."""
+    try:
+        piefed.get("/site")
+    except piefed.PrivateInstance:
+        return True
+    except ApiError:
+        pass
+    return piefed.guests_shut_out()
 
 
 def logged_in():
@@ -213,6 +229,15 @@ def session_expired(e):
     return redirect(url_for("bb.login", next=safe_target(request.referrer)))
 
 
+@bp.app_errorhandler(piefed.PrivateInstance)
+def private_instance(e):
+    # a guest on a private instance: everything needs a login
+    if not logged_in() and request.endpoint != "bb.login":
+        flash(e.message)
+        return redirect(url_for("bb.login", next=request.full_path if request.method == "GET" else None))
+    return render_template("message.html", title="Private forum", message=e.message), 403
+
+
 @bp.app_errorhandler(ApiError)
 def api_error(e):
     return render_template("message.html", title="Error", message=e.message), \
@@ -235,6 +260,18 @@ def index():
     if listing not in LISTINGS or (listing == "Subscribed" and not logged_in()):
         listing = "Subscribed" if logged_in() else "Local"
     sort = request.args.get("sort") if request.args.get("sort") in ("Active", "New", "Hot") else "Active"
+    if listing == "Subscribed":
+        # your forums, laid out like the front page: counts, Last Post, most recently active first
+        # (PieFed's /user/me lists follows too, but caches them for minutes; this list is current)
+        follows = []
+        for n in range(1, 11):
+            batch = piefed.get("/community/list", type_="Subscribed", sort="Active", page=n,
+                               limit=50).get("communities") or []
+            follows += [c["community"] for c in batch]
+            if len(batch) < 50:
+                break
+        rows = forums.community_rows([_renamed_community(c) for c in follows])
+        return render_template("index_flat.html", my_rows=rows, listing=listing, sort=sort, page=1, has_next=False)
     page = page_arg()
     data = piefed.get("/community/list", type_=listing, sort=sort, page=page, limit=50)
     hidden = forums.hidden_community_ids()
@@ -322,6 +359,21 @@ def bumped_topics(query, page, pin_sticky):
     return (sticky if page == 1 else []), pool[start:start + PER_PAGE], len(pool) > start + PER_PAGE
 
 
+def node_alert(kind, node_id):
+    """Whether the visitor gets notified of new topics in this topic/feed; None if PieFed can't say
+    (older than 1.8.11) or nobody is logged in."""
+    if not logged_in():
+        return None
+    try:
+        alerts = piefed.get("/user/activity_alert/list", cache=False, type_="Topics" if kind == "topic" else "Feeds",
+                            limit=50)
+    except piefed.SessionExpired:
+        raise
+    except ApiError:
+        return None
+    return node_id in (alerts.get("topics" if kind == "topic" else "feeds") or [])
+
+
 def _node_listing(kind, node, parent, **query):
     """Topic list of a PieFed topic or feed (all their communities' posts)."""
     page = page_arg()
@@ -330,6 +382,7 @@ def _node_listing(kind, node, parent, **query):
     if page > 1 and not posts:  # past the end: show the last page instead
         return redirect(url_for(f"bb.{kind}", page=min(page - 1, pages or 1), **query))
     return render_template("forum.html", kind=kind, topic=_named(node, kind), parent=_named(parent, kind),
+                           alert=node_alert(kind, node["id"]),
                            subforums=forums.subforum_rows(node, kind, blocked_community_ids()),
                            sticky=sticky, posts=posts, page=page, pages=pages, has_next=has_next)
 
@@ -490,7 +543,7 @@ def attach_upload(body):
     return (body.rstrip() + "\n\n" if body.strip() else "") + f"![image]({url})\n"
 
 
-def _upload(f):
+def _upload(f, path="/upload/image"):
     """Upload a file to PieFed; returns its URL, or None after flashing why it failed."""
     head = f.stream.read(16)
     f.stream.seek(0)
@@ -505,7 +558,7 @@ def _upload(f):
         flash("That image is larger than 10 MB.")
         return None
     try:
-        url = piefed.upload_image(f.stream, f"upload.{UPLOAD_TYPES[kind]}", kind)
+        url = piefed.upload_image(f.stream, f"upload.{UPLOAD_TYPES[kind]}", kind, path)
     except piefed.SessionExpired:
         raise
     except ApiError as e:
@@ -581,29 +634,90 @@ def topic_extras(form):
     return poll, event, None
 
 
+EMPTY_TOPIC = {"title": "", "body": "", "url": "", "nsfw": False, "poll_text": "", "poll_mode": "single",
+               "poll_days": 3, "ev_start": "", "ev_end": "", "ev_link": "", "ev_max": "", "tz": "",
+               "flair": [], "language_id": None}
+
+
+def topic_form():
+    """The new/edit topic form as sent by the browser."""
+    f = request.form
+    lang = f.get("language_id", type=int)
+    return {"title": f.get("title", "").strip(), "body": f.get("body", ""), "url": f.get("url", "").strip(),
+            "nsfw": bool(f.get("nsfw")), "poll_text": f.get("poll_text", ""),
+            "poll_mode": "multiple" if f.get("poll_mode") == "multiple" else "single",
+            "poll_days": f.get("poll_days", 3, type=int),
+            "ev_start": f.get("ev_start", "").strip(), "ev_end": f.get("ev_end", "").strip(),
+            "ev_link": f.get("ev_link", "").strip(), "ev_max": f.get("ev_max", "").strip(), "tz": f.get("tz", "").strip(),
+            "flair": [int(x) for x in f.getlist("flair") if x.isdecimal()][:10],
+            "language_id": lang if lang and lang > 0 else None}
+
+
+def topic_choices(community_id, info=None):
+    """(flairs, languages) a topic in this community can use: the community's flair, and the site's
+    languages limited to the community's discussion languages (if it set any). `info` is the /community
+    answer when the caller already has it."""
+    try:
+        info = info if info is not None else piefed.get("/community", id=community_id)
+    except piefed.SessionExpired:
+        raise
+    except ApiError:
+        info = {}
+    flairs = (info.get("community_view") or {}).get("flair_list") or []
+    allowed = info.get("discussion_languages") or []
+    languages = [x for x in (site().get("site") or {}).get("languages") or []
+                 if x["id"] > 1 and (not allowed or x["id"] in allowed)]  # 1 = "Undetermined"
+    return flairs, languages
+
+
+def assign_flair(post_id, flair_ids, allowed):
+    """Set a topic's flair (only ids the community offers); a failure here doesn't lose the topic."""
+    ids = [x for x in flair_ids if x in {f["id"] for f in allowed}]
+    try:
+        piefed.post("/post/assign_flair", {"post_id": post_id, "flair_id_list": ids}, keep=("flair_id_list",))
+    except piefed.SessionExpired:
+        raise
+    except ApiError as e:
+        flash(f"Topic saved, but the flair couldn't be set: {e.message}")
+
+
+def crosspost_prefill(post_id):
+    """Topic form filled from an existing topic, to post it again in another forum (Lemmy-style)."""
+    try:
+        src = piefed.get("/post", id=post_id).get("post_view") or {}
+    except ApiError:
+        return dict(EMPTY_TOPIC)
+    p = src.get("post") or {}
+    if not p.get("id"):
+        return dict(EMPTY_TOPIC)
+    link = p.get("ap_id") or url_for("bb.thread", post_id=p["id"], _external=True)
+    quoted = "\n".join("> " + line for line in render.hide_spoilers(p.get("body") or "").strip("\n").splitlines())
+    return dict(EMPTY_TOPIC, title=p.get("title") or "", url=p.get("url") or "", nsfw=bool(p.get("nsfw")),
+                body=f"cross-posted from: {link}" + (f"\n\n{quoted}" if quoted else ""))
+
+
 @bp.route("/c/<path:name>/new", methods=["GET", "POST"])
 def new_topic(name):
     if (r := require_login()):
         return r
-    cv = piefed.get("/community", name=name, cache=False).get("community_view") or {}
+    info = piefed.get("/community", name=name, cache=False)
+    cv = info.get("community_view") or {}
     if not (cv.get("community") or {}).get("id"):
         abort(404)
-    form = {"title": "", "body": "", "url": "", "nsfw": False, "poll_text": "", "poll_mode": "single",
-            "poll_days": 3, "ev_start": "", "ev_end": "", "ev_link": "", "ev_max": "", "tz": ""}
+    flairs, languages = topic_choices(cv["community"]["id"], info)
+    form = crosspost_prefill(request.args.get("crosspost", type=int)) if request.args.get("crosspost") \
+        else dict(EMPTY_TOPIC)
+
+    def show(**extra):
+        return render_template("posting.html", mode="topic", cv=cv, form=form, poll_days=POLL_DAYS,
+                               flairs=flairs, languages=languages, **extra)
     if request.method == "POST":
-        form = {"title": request.form.get("title", "").strip(), "body": request.form.get("body", ""),
-                "url": request.form.get("url", "").strip(), "nsfw": bool(request.form.get("nsfw")),
-                "poll_text": request.form.get("poll_text", ""),
-                "poll_mode": "multiple" if request.form.get("poll_mode") == "multiple" else "single",
-                "poll_days": request.form.get("poll_days", 3, type=int),
-                "ev_start": request.form.get("ev_start", "").strip(), "ev_end": request.form.get("ev_end", "").strip(),
-                "ev_link": request.form.get("ev_link", "").strip(), "ev_max": request.form.get("ev_max", "").strip(),
-                "tz": request.form.get("tz", "").strip()}
+        form = topic_form()
         if request.form.get("upload"):
             form["body"] = attach_upload(form["body"])
-            return render_template("posting.html", mode="topic", cv=cv, form=form, poll_days=POLL_DAYS)
+            return show()
         if request.form.get("preview"):
-            return render_template("posting.html", mode="topic", cv=cv, form=form, preview=True, poll_days=POLL_DAYS)
+            return show(preview=True)
         poll, event, problem = topic_extras(form)
         if not form["title"]:
             flash("You must enter a subject.")
@@ -613,15 +727,18 @@ def new_topic(name):
             try:
                 res = piefed.post("/post", {"title": form["title"], "community_id": cv["community"]["id"],
                                             "body": form["body"] or None, "url": form["url"] or None,
-                                            "nsfw": form["nsfw"], "poll": poll, "event": event})
+                                            "nsfw": form["nsfw"], "poll": poll, "event": event,
+                                            "language_id": form["language_id"]})
                 new_id = ((res.get("post_view") or {}).get("post") or {}).get("id")
                 if not new_id:  # created, but PieFed answered in an unexpected shape
                     flash("Topic posted.")
                     return redirect(url_for("bb.community", name=name))
+                if form["flair"]:
+                    assign_flair(new_id, form["flair"], flairs)
                 return redirect(url_for("bb.thread", post_id=new_id))
             except ApiError as e:
                 flash(e.message)
-    return render_template("posting.html", mode="topic", cv=cv, form=form, poll_days=POLL_DAYS)
+    return show()
 
 
 @bp.route("/p/<int:post_id>/reply", methods=["GET", "POST"])
@@ -849,10 +966,31 @@ def set_theme():
     return resp
 
 
+SEARCH_SORTS = (("", "Best match"), ("New", "Newest"), ("Old", "Oldest"), ("TopWeek", "Top this week"),
+                ("TopMonth", "Top this month"), ("TopYear", "Top this year"), ("TopAll", "Top of all time"))
+
+
 @bp.route("/search")
 def search():
     q = request.args.get("q", "").strip()
     stype = request.args.get("type") if request.args.get("type") in SEARCH_TYPES else "Posts"
+    sort = request.args.get("sort") if request.args.get("sort") in dict(SEARCH_SORTS) else ""
     page = page_arg()
-    res = piefed.get("/search", q=q, type_=stype, page=page, limit=PER_PAGE) if q else {}
-    return render_template("search.html", q=q, stype=stype, res=res, page=page)
+    # a search inside one forum (from its page); only topics and replies can be limited to a forum
+    forum = None
+    community_id = request.args.get("community_id", type=int)
+    if community_id and stype in ("Posts", "Comments"):
+        try:
+            forum = (piefed.get("/community", id=community_id).get("community_view") or {}).get("community")
+        except piefed.SessionExpired:
+            raise
+        except ApiError:
+            forum = None
+        if forum and forum.get("id"):
+            forum = _renamed_community(forum)
+        else:
+            forum = None
+    res = piefed.get("/search", q=q, type_=stype, page=page, limit=PER_PAGE, sort=sort or None,
+                     community_id=forum["id"] if forum else None) if q else {}
+    return render_template("search.html", q=q, stype=stype, res=res, page=page, sort=sort, sorts=SEARCH_SORTS,
+                           forum=forum)

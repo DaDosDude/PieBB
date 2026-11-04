@@ -8,8 +8,13 @@
   <tr><th colspan="2">Search Query</th></tr>
   <tr><td class="row1 gen" width="22%"><b>Search for keywords:</b></td>
       <td class="row2"><input type="search" name="q" value="{{ q }}" style="width:60%">
-        <select name="type">{% for t in ['Posts', 'Comments', 'Communities', 'Users'] %}<option{% if t == stype %} selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+        <select name="type">{% for t, label in [('Posts', 'Topics'), ('Comments', 'Replies'), ('Communities', 'Forums'), ('Users', 'Users')] %}<option value="{{ t }}"{% if t == stype %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
         <input type="submit" value="Search"></td></tr>
+  <tr><td class="row1 gen"><b>Sort by:</b></td>
+      <td class="row2 gen"><select name="sort">{% for value, label in sorts %}<option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        {% if forum %}<input type="hidden" name="community_id" value="{{ forum.id }}">
+        &nbsp; Only in <b><a href="{{ url_for('bb.community', name=forum|cref) }}">{{ forum.title or forum.name }}</a></b>
+        (<a href="{{ url_for('bb.search', q=q, type=stype, sort=sort or None) }}">search everywhere</a>){% endif %}</td></tr>
 </table>
 </form>
 

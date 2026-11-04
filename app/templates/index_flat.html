@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m with context %}
+{% import "_forum_rows.html" as fr with context %}
 {% block pagehead %}
 <table width="100%"><tr>
   <td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a></td>
@@ -7,15 +8,21 @@
     {% for t in (['Subscribed'] if logged_in else []) + ['Local', 'All'] %}
       <a class="{{ 'on' if t == listing }}" href="{{ url_for('bb.index', view='flat', type=t, sort=sort) }}">{{ t }}</a>
     {% endfor %}
-    | Sort:
+    {% if listing != 'Subscribed' %}| Sort:
     {% for s, label in [('Active','Active'), ('New','Newest'), ('Hot','Hot')] %}
       <a class="{{ 'on' if s == sort }}" href="{{ url_for('bb.index', view='flat', type=listing, sort=s) }}">{{ label }}</a>
-    {% endfor %}
+    {% endfor %}{% endif %}
   </td>
 </tr></table>
 
 {% endblock %}
 {% block content %}
+{% if my_rows is defined %}
+{% if my_rows %}{{ fr.forum_table('Your forums', [{'rows': my_rows}]) }}
+{% else %}<table class="forumline"><tr><th>Your forums</th></tr>
+  <tr><td class="row1 center gen">You aren't subscribed to any forums yet. Use "Subscribe" at the top of a forum,
+    or browse the <a href="{{ url_for('bb.index', view='flat', type='Local') }}">Local</a> forums.</td></tr></table>{% endif %}
+{% else %}
 <table class="forumline">
   <tr><th colspan="2">&nbsp;Forum&nbsp;</th><th>&nbsp;Topics&nbsp;</th><th class="hide-sm">&nbsp;Posts&nbsp;</th><th class="hide-sm">&nbsp;Members&nbsp;</th></tr>
   <tr><td class="catLeft" colspan="5"><span class="cattitle">{{ listing }} communities</span></td></tr>
@@ -24,4 +31,5 @@
   {% endfor %}
 </table>
 <table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endif %}
 {% endblock %}

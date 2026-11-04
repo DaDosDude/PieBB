@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Crosspost :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.community', name=pv.community|cref) }}">{{ pv.community.title }}</a>
+  &raquo; <a href="{{ url_for('bb.thread', post_id=pv.post.id) }}">{{ pv.post.title }}</a> &raquo; Crosspost</td></tr></table>
+<form method="post">{{ m.csrf() }}
+<table class="forumline formtable" style="max-width:640px;margin:20px auto">
+  <tr><th colspan="2">Post this topic in another forum</th></tr>
+  <tr><td class="row1 gen" width="35%"><b>One of your forums</b></td>
+      <td class="row2"><select name="forum"><option value="">Choose…</option>
+        {% for c in forums %}<option value="{{ c|cref }}">{{ c.title or c.name }}{% if not c.local %} ({{ c.ap_domain or (c.actor_id|domain) }}){% endif %}</option>{% endfor %}
+      </select></td></tr>
+  <tr><td class="row1 gen"><b>Or another forum</b><br><span class="gensmall">name, or name@instance</span></td>
+      <td class="row2"><input type="text" name="other" placeholder="retrogaming@lemmy.world"></td></tr>
+  <tr><td class="row1 gensmall" colspan="2">Next you'll see the new-topic form in that forum, filled in with this topic
+    and a "cross-posted from" link. Topics with the same link are shown as crossposts of each other.</td></tr>
+  <tr><td class="catBottom center" colspan="2"><input type="submit" value="Continue"></td></tr>
+</table>
+</form>
+{% endblock %}

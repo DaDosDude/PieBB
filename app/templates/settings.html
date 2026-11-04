@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Your settings :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.profile', username=account|pref) }}">{{ account|pname }}</a> &raquo; Settings</td></tr></table>
+<form method="post" enctype="multipart/form-data">{{ m.csrf() }}
+<table class="forumline formtable">
+  <tr><th colspan="2">Profile</th></tr>
+  <tr><td class="row1 gen" width="30%"><b>Display name</b><br><span class="gensmall">Empty = your username ({{ account.user_name }})</span></td>
+      <td class="row2"><input type="text" name="display_name" maxlength="255" value="{{ account.title if account.title and account.title != account.user_name else '' }}"></td></tr>
+  <tr><td class="row1 gen" valign="top"><b>Avatar</b><br><span class="gensmall">PNG, JPEG, GIF or WebP, max 10 MB</span></td>
+      <td class="row2 gen">
+        {% if account.avatar %}<img class="avatar" src="{{ account.avatar|img }}" alt="" style="vertical-align:middle"> &nbsp;
+          <label><input type="checkbox" name="remove_avatar" value="1"> Remove</label><br>{% endif %}
+        <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp"></td></tr>
+  <tr><td class="row1 gen" valign="top"><b>About you</b><br><span class="gensmall">Shown on your profile. Markdown is supported.</span></td>
+      <td class="row2">{{ m.md_toolbar() }}<textarea name="bio" rows="6" maxlength="5000">{{ account.about or '' }}</textarea></td></tr>
+
+  <tr><th colspan="2">Preferences</th></tr>
+  <tr><td class="row1 gen"><b>Private messages from</b></td>
+      <td class="row2 gen"><select name="accept_private_messages">
+        {% for value, label in [('All', 'Anyone'), ('Trusted', 'People on trusted instances'), ('Local', 'Only people on ' ~ (site.name or 'this instance')), ('None', 'Nobody')] %}
+        <option value="{{ value }}"{% if prefs.accept_private_messages == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></td></tr>
+  <tr><td class="row1 gen"><b>NSFW content</b></td>
+      <td class="row2 gen"><select name="nsfw_visibility">
+        {% for v in nsfw_choices %}<option value="{{ v }}"{% if prefs.nsfw_visibility == v %} selected{% endif %}>{{ v }}</option>{% endfor %}
+      </select></td></tr>
+  <tr><td class="row1 gen"><b>Topics you've read</b></td>
+      <td class="row2 gen"><label><input type="checkbox" name="show_read_posts" value="1"{% if prefs.show_read_posts %} checked{% endif %}> Keep showing them in topic lists</label></td></tr>
+  <tr><td class="row1 gen"><b>Email</b></td>
+      <td class="row2 gen"><label><input type="checkbox" name="email_unread" value="1"{% if prefs.email_unread %} checked{% endif %}> Email me about notifications I missed</label></td></tr>
+  <tr><td class="row1 gen"><b>Password</b></td>
+      <td class="row2 gen"><a href="{{ piefed_url }}/user/settings" rel="noopener">Change it on {{ site.name or 'PieFed' }}</a>
+        <span class="gensmall muted">(PieFed's API can't change passwords)</span></td></tr>
+  <tr><td class="catBottom center" colspan="2"><input type="submit" value="Save settings"></td></tr>
+</table>
+</form>
+<p class="gensmall">These settings are saved on {{ site.name or 'PieFed' }} itself, so they also apply in other apps you use with this account.</p>
+{% endblock %}

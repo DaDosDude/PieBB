@@ -24,6 +24,48 @@ class SessionExpired(ApiError):
     """PieFed rejected the stored token (expired, revoked or logged out elsewhere)."""
 
 
+class PrivateInstance(ApiError):
+    """The PieFed instance is private (PieFed 1.8.11+): it only answers logged-in users."""
+
+
+PRIVATE_MESSAGE = "This forum is private: log in to read it."
+_PRIVATE_KEY = "instance:private"
+
+
+def instance_is_private():
+    """Whether PieFed said it only answers logged-in users (remembered across workers and restarts)."""
+    value, _ = sharedcache.get(_PRIVATE_KEY)
+    return value is True
+
+
+def _note_private(private):
+    if instance_is_private() != private:
+        sharedcache.put(_PRIVATE_KEY, private)
+
+
+_private_checked = [0.0]
+
+
+def guests_shut_out():
+    """True while the instance is private, so guests must not see even cached pages. Rechecked with
+    one anonymous request at most once a minute, in case the admin made the instance public again."""
+    if not instance_is_private():
+        return False
+    if time.time() - _private_checked[0] > 60:
+        _private_checked[0] = time.time()
+        headers = {"Accept": "application/json", "User-Agent": f"PieBB/{VERSION}"}
+        if current_app.config["PIEFED_HOST_HEADER"]:
+            headers["Host"] = current_app.config["PIEFED_HOST_HEADER"]
+        try:
+            r = requests.get(current_app.config["PIEFED_API_URL"] + "/topic/list", headers=headers,
+                             timeout=current_app.config["PIEFED_TIMEOUT"])
+            if r.status_code == 200:
+                _note_private(False)
+        except requests.RequestException:
+            pass
+    return instance_is_private()
+
+
 _cache = TTLCache(maxsize=2048, ttl=30)
 _cache_lock = threading.Lock()
 
@@ -65,6 +107,9 @@ def _handle(r):
         err = data if isinstance(data, dict) else {}
         msg = schema.s(err.get("message")) or schema.s(err.get("error")) or ""
         status = schema.s(err.get("status")) or ""
+        if msg == "instance_is_private":
+            _note_private(True)
+            raise PrivateInstance(401, PRIVATE_MESSAGE)
         gone = "That doesn't exist (anymore): it may have been deleted."
         if status.lower() == "not found" or (r.status_code == 404 and not msg.strip("() ")):
             raise ApiError(404, gone)  # PieFed: {"message": "()", "status": "Not found"}, or a bare 404 page
@@ -80,16 +125,32 @@ def _handle(r):
         msg = msg[:300]
         auth_failed = r.status_code == 401 or msg.startswith(("incorrect_login", "incorrect login"))
         if auth_failed and session.get("jwt"):
+            # PieFed also answers "incorrect_login" when a valid login lacks the rights for something
+            # (e.g. moderating a forum you don't moderate): only a login that really stopped working ends the session
+            if _login_still_valid():
+                raise ApiError(403, "PieFed says you don't have permission to do that.")
             session.clear()
             raise SessionExpired(r.status_code, "Your session has expired. Please log in again.")
         elif auth_failed:
             msg = "You need to log in for that."
+        elif msg == "no_permission":
+            msg = "PieFed says you don't have permission to do that."
         elif r.status_code == 429:
             msg = "PieFed is rate-limiting requests. Wait a moment and try again."
         elif msg == "Validation failed":
             msg = "PieFed rejected the request: " + (schema.s(err.get("status")) or "invalid data")
         raise ApiError(r.status_code, msg)
     return data if data is not None else {}
+
+
+def _login_still_valid():
+    """Whether PieFed still accepts the session's token (a cheap, unlimited, uncached call)."""
+    try:
+        r = requests.get(current_app.config["PIEFED_API_URL"] + "/user/unread_count", headers=_headers(),
+                         timeout=current_app.config["PIEFED_TIMEOUT"])
+    except requests.RequestException:
+        return True  # can't tell: keep the session rather than log someone out over a network hiccup
+    return r.status_code == 200
 
 
 _badge_cache = TTLCache(maxsize=4096, ttl=15)  # header unread badges, per login
@@ -285,7 +346,7 @@ def feed_tree():
     """Public feeds, same shape as topic_tree(). Empty if the instance has none or no API for it."""
     try:
         return _tree("/feed/list", "feeds")
-    except SessionExpired:
+    except (SessionExpired, PrivateInstance):
         raise
     except ApiError:
         return []
@@ -301,16 +362,18 @@ def find_topic(tree, topic_id, parent=None):
     return None, None
 
 
-def upload_image(stream, filename, mimetype):
-    """POST /upload/image as multipart (field "file"); returns the hosted image URL."""
-    url = current_app.config["PIEFED_API_URL"] + "/upload/image"
+def upload_image(stream, filename, mimetype, path="/upload/image"):
+    """POST an image as multipart (field "file") to /upload/image (posts) or /upload/user_image
+    (avatars); returns the hosted image URL."""
+    url = current_app.config["PIEFED_API_URL"] + path
     headers = _headers()
     try:
         r = requests.post(url, files={"file": (filename, stream, mimetype)}, headers=headers,
                           timeout=max(current_app.config["PIEFED_TIMEOUT"], 60))
     except requests.RequestException as e:
         raise ApiError(502, f"Could not reach PieFed: {e.__class__.__name__}")
-    return schema.normalize("/upload/image", _handle(r)).get("url")
+    data = _handle(r)
+    return schema.s(data.get("url")) if isinstance(data, dict) else None
 
 
 # ---- shared community stats (no user session, safe to use from worker threads) ----
@@ -379,18 +442,34 @@ def _remembering(kind, cid, fetch):
 
 
 def _anon_getter(budget):
-    """Anonymous API GET for shared statistics (never sends the visitor's login). Config is read
-    here, in the request, because the lookups run in worker threads without an app context."""
+    """API GET for shared data (topic lists, statistics): anonymous, so one answer serves every visitor.
+    A private instance (PieFed 1.8.11+) answers no one anonymously; then the visitor's own login is
+    used, and a guest gets PrivateInstance. Config is read here, in the request, because the lookups
+    run in worker threads without an app context."""
     base = current_app.config["PIEFED_API_URL"]
     timeout = min(current_app.config["PIEFED_TIMEOUT"], budget)
     headers = {"Accept": "application/json", "User-Agent": f"PieBB/{VERSION}"}
     if current_app.config["PIEFED_HOST_HEADER"]:
         headers["Host"] = current_app.config["PIEFED_HOST_HEADER"]
+    jwt = session.get("jwt")
+    login = {"Authorization": f"Bearer {jwt}"} if isinstance(jwt, str) and jwt else {}
+    private = [instance_is_private()]
 
     def anon_get(path, params):
-        r = requests.get(base + path, params=params, headers=headers, timeout=timeout)
+        use_login = bool(login) and private[0]
+        r = requests.get(base + path, params=params, timeout=timeout,
+                         headers=dict(headers, **login) if use_login else headers)
+        if r.status_code == 400 and '"instance_is_private"' in r.text:
+            private[0] = True
+            _note_private(True)
+            if not login:
+                raise PrivateInstance(401, PRIVATE_MESSAGE)
+            use_login = True
+            r = requests.get(base + path, params=params, headers=dict(headers, **login), timeout=timeout)
         if r.status_code != 200:
             return None
+        if not use_login:
+            _note_private(False)  # answered without a login: the instance is public
         return schema.normalize(path, r.json())
     return anon_get
 

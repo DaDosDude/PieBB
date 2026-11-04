@@ -2,7 +2,7 @@
 
 A classic bulletin-board frontend for [PieFed](https://codeberg.org/rimu/pyfedi), styled like phpBB2's subSilver.
 It talks to PieFed's API only, so it runs alongside your instance without touching its database.
-Tested with PieFed 1.8.x.
+Requires PieFed 1.8.11 or newer. Private instances work too: guests are sent to the login page.
 
 PieFed topics and feeds become forum categories, communities become forums, posts become topics,
 and comments become replies. Replies are shown flat and in order, each quoting the post it answers.
@@ -13,9 +13,14 @@ and comments become replies. Replies are shown flat and in order, each quoting t
   Communities sort by latest activity. There's also a flat forum list.
 - **Topic lists:** the first page is ordered by latest reply, like phpBB, with phpBB-style paging (First / Last / page numbers / jump to page).
 - **Threads:** flat replies with quotes, polls, events, galleries and spoilers. Bare image links display as images.
-- **Posting:** new topics (with an optional poll or event), replies, quick reply, edit and delete, preview, a formatting toolbar and image upload.
-- **Members:** votes, subscriptions, saved posts, blocking, reports, notifications, private messages, unread topics and mark-as-read.
+- **Posting:** new topics (with an optional poll or event, flair and language), crossposting, replies, quick reply,
+  edit and delete (polls and events too), preview, a formatting toolbar and image upload.
+- **Members:** profile and settings (name, avatar, bio, preferences), your forums, votes, subscriptions, following topics,
+  alerts for new topics in a forum, category or feed,
+  saved posts, blocking, reports, notifications, private messages, unread topics and mark-as-read.
+- **Search:** topics, replies, forums and users, with sorting; search inside a single forum from its page.
 - **Moderator CP:** lock, sticky, remove, ban, reports and the mod log, for PieFed community moderators.
+  Forum settings for local forums: name, icon, description, options, moderators, flair and banned users.
 - **phpBB2 themes:** upload a phpBB2 style zip (e.g. from a phpBB2 styles archive) in the admin panel.
   PieBB reads its `theme_info.cfg` colours, stylesheet and images (folder icons, buttons). Built-in themes:
   subSilver and a dark Charcoal theme. Visitors can pick any installed theme from the footer (admins can turn this off).

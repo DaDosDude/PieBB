@@ -100,6 +100,7 @@
   <td class="row1" width="100%">
     {% if p.sticky %}<b>Sticky:</b> {% endif %}{% if p.locked %}<b>Locked:</b> {% endif %}
     <a class="topictitle" href="{{ url_for('bb.thread', post_id=p.id) }}">{{ p.title }}</a>
+    {% for f in pv.flair_list %}{{ flair(f) }} {% endfor %}
     {% if p.url and p.url|domain and p.url|url != '#' %}<span class="gensmall muted">({{ p.url|domain }})</span>{% endif %}
     {% if p.nsfw %}<span class="gensmall" style="color:#C00">[NSFW]</span>{% endif %}
     {% if pv.unread_comments and logged_in and pv.read %}<span class="gensmall" style="color:#DD6900">{{ pv.unread_comments }} new</span>{% endif %}
@@ -148,6 +149,10 @@
     <button class="btnlink">{{ 'Restore' if deleted else 'Delete' }}</button></form>
 {% elif logged_in %}
   &nbsp;|&nbsp; <a href="{{ url_for('bb.report', kind=kind, obj_id=obj_id) }}">Report</a>
+  {% if creator and creator.id %}&middot;
+  <form class="inline" method="post" action="{{ url_for('bb.block', kind='user', obj_id=creator.id) }}"
+        onsubmit="return confirm({{ ('Block ' ~ (creator|pref) ~ '? You will no longer see their posts.')|tojson|forceescape }})">{{ csrf() }}
+    <input type="hidden" name="block" value="1"><button class="btnlink" title="Hide everything this user posts">Block user</button></form>{% endif %}
 {% endif %}
 {% endmacro %}
 
@@ -223,4 +228,12 @@
   <input type="hidden" name="block" value="{{ '0' if is_blocked else '1' }}">
   <button class="btn">{{ 'Unblock' if is_blocked else 'Block' }}{{ ' ' ~ ('user' if kind == 'user' else 'forum') }}</button></form>
 {% endif %}
+{% endmacro %}
+
+{% macro flair(f) %}<span class="flair" style="color:{{ f.text_color }};background:{{ f.background_color }}">{{ f.title }}</span>{% endmacro %}
+
+{% macro alert_btn(kind, obj_id, on) %}
+<form class="inline" method="post" action="{{ url_for('bb.new_topic_alerts', kind=kind, obj_id=obj_id) }}">{{ csrf() }}
+  <input type="hidden" name="alert" value="{{ '0' if on else '1' }}">
+  <button class="btn" title="{{ 'Stop notifications about new topics here' if on else 'Get a notification for every new topic here' }}">{{ 'Stop new-topic alerts' if on else 'Alert me of new topics' }}</button></form>
 {% endmacro %}

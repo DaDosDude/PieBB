@@ -101,6 +101,15 @@ def subforum_rows(node, kind, blocked=frozenset()):
     return group["rows"]
 
 
+def community_rows(communities):
+    """Index-style rows (counts, Last Post, most recently active first) for a plain list of communities,
+    e.g. the ones a user is subscribed to."""
+    hidden = hidden_community_ids()
+    group = {"rows": [_community_row(c, n) for n, c in enumerate(communities) if c["id"] not in hidden], "url": None}
+    _attach_stats([group])
+    return group["rows"]
+
+
 def _last_time(r):
     return ((r.get("last") or {}).get("time")) or ""
 

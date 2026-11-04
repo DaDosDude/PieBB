@@ -465,6 +465,168 @@ user.post(BB + f"/block/community/{cid}", data={"csrf": t, "block": "0"})
 check("unblocked forum back on the front page", 'class="forumlink" href="/c/retrogaming"' in user.get(BB + "/").text)
 check("unblock forum", "You haven't blocked any forums" in user.get(BB + "/blocked").text)
 
+# ---------------- your settings
+st = user.get(BB + "/settings").text
+check("settings page", 'name="display_name"' in st and 'name="accept_private_messages"' in st)
+t = csrf(user, "/settings")
+r = user.post(BB + "/settings", data={"csrf": t, "display_name": "Plain Tester", "bio": "I like *SNES*",
+                                      "accept_private_messages": "Local", "nsfw_visibility": "Blur", "show_read_posts": "1"})
+check("settings saved", "Settings saved." in r.text, flashes(r))
+me_ = requests.get(PF + "/user", params={"username": "plainuser"}).json()["person_view"]["person"]
+check("display name and bio saved on PieFed", me_.get("title") == "Plain Tester" and "SNES" in (me_.get("about") or ""), me_)
+st = user.get(BB + "/settings").text
+check("settings page shows saved values", 'value="Plain Tester"' in st and '<option value="Local" selected>' in st
+      and '<option value="Blur" selected>' in st and "I like *SNES*" in st)
+check("profile shows new name and bio", "Plain Tester" in victim.get(BB + "/u/plainuser").text)  # logged in: guest pages are cached 30 s
+png = __import__("base64").b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+r = user.post(BB + "/settings", data={"csrf": t, "display_name": "Plain Tester", "accept_private_messages": "All",
+                                      "nsfw_visibility": "Hide", "show_read_posts": "1"}, files={"avatar": ("a.png", png, "image/png")})
+check("avatar uploaded", "Settings saved." in r.text, flashes(r))
+check("avatar set on PieFed", bool(requests.get(PF + "/user", params={"username": "plainuser"}).json()["person_view"]["person"].get("avatar")))
+r = user.post(BB + "/settings", data={"csrf": t, "display_name": "", "bio": "", "accept_private_messages": "All",
+                                      "nsfw_visibility": "Hide", "show_read_posts": "1", "remove_avatar": "1"})
+me_ = requests.get(PF + "/user", params={"username": "plainuser"}).json()["person_view"]["person"]
+check("display name, bio and avatar cleared", not me_.get("title") or me_.get("title") == "plainuser", me_)
+check("password reset link points to PieFed's page", "/auth/reset_password_request" in requests.get(BB + "/login").text)
+
+# ---------------- your forums (Subscribed tab) with front-page rows, always current
+yf = user.get(BB + "/?view=flat&type=Subscribed").text
+check("your forums listed with Last Post", "Your forums" in yf and 'class="forumlink" href="/c/retrogaming"' in yf and "lastpost" in yf)
+t = csrf(user, "/c/retrogaming")
+user.post(BB + f"/follow/{cid}", data={"csrf": t, "follow": "0"})
+check("unsubscribed forum gone at once", 'class="forumlink" href="/c/retrogaming"' not in user.get(BB + "/?view=flat&type=Subscribed").text)
+user.post(BB + f"/follow/{cid}", data={"csrf": t, "follow": "1"})
+check("subscribed forum back at once", 'class="forumlink" href="/c/retrogaming"' in user.get(BB + "/?view=flat&type=Subscribed").text)
+
+# ---------------- follow a topic
+t = csrf(victim, f"/p/{NEW}")
+r = victim.post(BB + f"/p/{NEW}/follow", data={"csrf": t, "follow": "1"})
+check("follow topic", "Unfollow topic" in r.text, flashes(r))
+victim.post(BB + f"/p/{NEW}/follow", data={"csrf": t, "follow": "0"})
+check("unfollow topic", "Follow topic" in victim.get(BB + f"/p/{NEW}").text)
+
+# ---------------- search inside a forum, with sort
+sr = user.get(BB + "/search", params={"q": "reply", "type": "Comments", "community_id": cid, "sort": "New"}).text
+check("forum search shows its scope", "Only in" in sr and "search everywhere" in sr)
+check("forum page has a search box", 'name="community_id"' in user.get(BB + "/c/retrogaming").text)
+other = requests.get(PF + "/community", params={"name": "amiga"}).json()["community_view"]["community"]["id"]
+sr_other = user.get(BB + "/search", params={"q": "reply", "type": "Comments", "community_id": other}).text
+check("forum search doesn't show other forums' posts", "Re: PieBB real test" not in sr_other)
+check("bad sort ignored", user.get(BB + "/search", params={"q": "x", "sort": "DROP"}).status_code == 200)
+
+# ---------------- moderator tools: forum settings (modguy moderates modtest)
+check("mod sees Forum settings", "Forum settings" in mod.get(BB + "/c/modtest").text)
+check("non-mod doesn't", "Forum settings" not in user.get(BB + "/c/modtest").text)
+check("non-mod can't open them", user.get(BB + "/c/modtest/settings").status_code == 403)
+tm = csrf(mod, "/c/modtest/settings")
+r = mod.post(BB + "/c/modtest/settings", data={"csrf": tm, "action": "details", "title": "Mod test forum",
+                                                "description": "Rules: be **nice**", "restricted_to_mods": ""})
+check("forum details saved", "Forum settings saved." in r.text, flashes(r))
+cvj = requests.get(PF + "/community", params={"name": "modtest"}).json()["community_view"]["community"]
+check("forum details on PieFed", cvj.get("title") == "Mod test forum" and "nice" in (cvj.get("description") or ""), cvj.get("title"))
+r = mod.post(BB + "/c/modtest/settings", data={"csrf": tm, "action": "flair_add", "flair_title": "Question",
+                                                "text_color": "#ffffff", "background_color": "#336699"})
+check("flair added", "Flair added." in r.text and "Question" in r.text, flashes(r))
+fl = requests.get(PF + "/community", params={"name": "modtest"}).json()["community_view"].get("flair_list") or []
+flair_id = fl[0]["id"] if fl else None
+r = mod.post(BB + "/c/modtest/settings", data={"csrf": tm, "action": "mod_add", "username": "victim"})
+check("a moderator who isn't the owner gets a clear refusal", "permission" in r.text, flashes(r))
+check("...and stays logged in", "Forum settings" in mod.get(BB + "/c/modtest").text)
+ta = csrf(admin, "/c/modtest/settings")
+r = admin.post(BB + "/c/modtest/settings", data={"csrf": ta, "action": "mod_add", "username": "victim"})
+check("admin adds a moderator", "Moderator added." in r.text, flashes(r))
+vid = requests.get(PF + "/user", params={"username": "victim"}).json()["person_view"]["person"]["id"]
+r = admin.post(BB + "/c/modtest/settings", data={"csrf": ta, "action": "mod_remove", "person_id": str(vid)})
+check("admin removes a moderator", "Moderator removed." in r.text, flashes(r))
+r = admin.post(BB + "/c/modtest/settings", data={"csrf": ta, "action": "mod_add", "username": "nobody_like_this"})
+check("unknown user can't be made moderator", "no user with that name" in r.text, flashes(r))
+
+# ---------------- thread extras: flair and language on a new topic, then edit it
+tn = csrf(mod, "/c/modtest/new")
+langs = re.findall(r'<option value="(\d+)"', mod.get(BB + "/c/modtest/new").text.split('name="language_id"')[-1].split("</select>")[0])
+data = {"csrf": tn, "title": "Flaired topic", "body": "hi"}
+if flair_id:
+    data["flair"] = str(flair_id)
+if langs:
+    data["language_id"] = langs[0]
+r = mod.post(BB + "/c/modtest/new", data=data)
+fid = re.search(r"/p/(\d+)", r.url).group(1) if "/p/" in r.url else None
+check("topic with flair created", fid and 'class="flair"' in r.text and "Question" in r.text, (r.url, flashes(r)))
+if fid:
+    check("flair shown in topic list", 'class="flair"' in mod.get(BB + "/c/modtest").text)
+    if langs:
+        check("language saved", str(requests.get(PF + "/post", params={"id": fid}).json()["post_view"]["post"].get("language_id")) == langs[0])
+    te = csrf(mod, f"/p/{fid}/edit")
+    r = mod.post(BB + f"/p/{fid}/edit", data={"csrf": te, "title": "Flaired topic (edited)", "body": "hi"})
+    check("edit can remove flair", "Topic updated." in r.text and "Question" not in r.text.split("</h1>")[0].split("maintitle")[1][:400], flashes(r))
+
+# editing a poll keeps it a poll; editing an event keeps it an event
+t = csrf(admin, "/c/retrogaming/new")
+for attempt in range(3):
+    r = admin.post(BB + "/c/retrogaming/new", data={"csrf": t, "title": "Edit me poll", "poll_text": "A\nB", "poll_days": "3"})
+    if "rate-limiting" not in r.text:
+        break
+    time.sleep(40)
+pid = re.search(r"/p/(\d+)", r.url).group(1) if "/p/" in r.url else None
+if pid:
+    ed = admin.get(BB + f"/p/{pid}/edit").text
+    check("poll edit form prefilled", "A\nB" in ed and 'name="url"' not in ed)
+    r = admin.post(BB + f"/p/{pid}/edit", data={"csrf": t, "title": "Edit me poll", "body": "x", "poll_text": "A\nB\nC", "poll_days": "7"})
+    pp = requests.get(PF + "/post", params={"id": pid}).json()["post_view"]["post"]
+    check("edited poll is still a poll with the new options", len((pp.get("poll") or {}).get("choices") or []) == 3, pp.get("poll"))
+else:
+    check("poll for edit test created", False, flashes(r))
+for attempt in range(3):
+    r = admin.post(BB + "/c/retrogaming/new", data={"csrf": t, "title": "Edit me event", "ev_start": "2026-12-10T20:00",
+                                                    "ev_end": "2026-12-10T22:00", "tz": "Europe/Amsterdam"})
+    if "rate-limiting" not in r.text:
+        break
+    time.sleep(40)
+eid = re.search(r"/p/(\d+)", r.url).group(1) if "/p/" in r.url else None
+if eid:
+    ed = admin.get(BB + f"/p/{eid}/edit").text
+    check("event edit form prefilled in the server's timezone", "2026-12-10T20:00" in ed, re.findall(r'name="ev_start" value="([^"]*)"', ed))
+    r = admin.post(BB + f"/p/{eid}/edit", data={"csrf": t, "title": "Edit me event", "body": "", "ev_start": "2026-12-10T21:00",
+                                                "ev_end": "2026-12-10T23:00", "tz": "Europe/Amsterdam"})
+    ev = requests.get(PF + "/post", params={"id": eid}).json()["post_view"]["post"].get("event") or {}
+    check("edited event is still an event at the new time", ev.get("start", "").startswith("2026-12-10T20:00"), ev)
+else:
+    check("event for edit test created", False, flashes(r))
+
+# following survives editing your own topic
+tf = csrf(mod, f"/p/{fid}") if fid else None
+if fid:
+    mod.post(BB + f"/p/{fid}/follow", data={"csrf": tf, "follow": "1"})
+    mod.post(BB + f"/p/{fid}/edit", data={"csrf": tf, "title": "Flaired topic (edited twice)", "body": "hi"})
+    check("still following after an edit", "Unfollow topic" in mod.get(BB + f"/p/{fid}").text)
+
+# crosspost
+r = user.get(BB + f"/p/{NEW}/crosspost")
+check("crosspost page lists your forums", 'name="forum"' in r.text)
+r = user.post(BB + f"/p/{NEW}/crosspost", data={"csrf": csrf(user, f"/p/{NEW}/crosspost"), "forum": "", "other": "amiga"},
+              allow_redirects=False)
+check("crosspost goes to a prefilled new topic", "/c/amiga/new" in r.headers.get("Location", "") and "crosspost=" in r.headers.get("Location", ""))
+nf = user.get(BB + r.headers.get("Location", "/")).text
+check("prefilled with the topic and a cross-posted-from link", "cross-posted from:" in nf and "PieBB real test topic" in nf)
+
+# block a user from one of their posts
+th = victim.get(BB + f"/p/{NEW}").text  # the topic and its replies are plainuser's
+check("posts by others offer Block user", "/block/user/" in th)
+check("your own posts don't", "/block/user/" not in user.get(BB + f"/p/{NEW}").text.split('class="post"')[1])
+
+# ---------------- new-topic alerts for a forum and for a whole category (PieFed 1.8.11+)
+t = csrf(victim, "/c/retrogaming")
+r = victim.post(BB + f"/alerts/community/{cid}", data={"csrf": t, "alert": "1"}, headers={"Referer": BB + "/c/retrogaming"})
+check("forum new-topic alerts on", "Stop new-topic alerts" in r.text, flashes(r))
+victim.post(BB + f"/alerts/community/{cid}", data={"csrf": t, "alert": "0"}, headers={"Referer": BB + "/c/retrogaming"})
+check("forum new-topic alerts off", "Alert me of new topics" in victim.get(BB + "/c/retrogaming").text)
+r = victim.post(BB + "/alerts/topic/1", data={"csrf": t, "alert": "1"}, headers={"Referer": BB + "/t/1"})
+check("category new-topic alerts on", "Stop new-topic alerts" in r.text, flashes(r))
+victim.post(BB + "/alerts/topic/1", data={"csrf": t, "alert": "0"}, headers={"Referer": BB + "/t/1"})
+check("category new-topic alerts off", "Alert me of new topics" in victim.get(BB + "/t/1").text)
+check("guests get no alert buttons", "new-topic alerts" not in requests.get(BB + "/t/1").text
+      and "Alert me of new topics" not in requests.get(BB + "/t/1").text)
+
 # ---------------- logout revokes the PieFed token
 tok_before = admin.cookies.get("piebb")
 admin.post(BB + "/logout", data={"csrf": csrf(admin)})
