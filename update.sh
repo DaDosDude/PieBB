@@ -19,6 +19,7 @@ if [ -z "${PIEBB_UPDATE_COPY:-}" ]; then
 	PIEBB_UPDATE_COPY="$copy" PIEBB_DIR="$DIR" exec bash "$copy" "$@"
 fi
 trap 'rm -f "$PIEBB_UPDATE_COPY"' EXIT
+trap 'echo "error: update.sh stopped unexpectedly (line $LINENO); nothing after that step was done" >&2' ERR
 DIR="$PIEBB_DIR"
 cd "$DIR"
 
@@ -77,7 +78,7 @@ dirty=0
 if [ "$mode" = test ]; then
 	[ -f "$tarball" ] || die "$tarball not found"
 	tar tzf "$tarball" >/dev/null 2>&1 || die "$tarball is not a .tar.gz file"
-	top="$(tar tzf "$tarball" | head -1)"
+	top="$(tar tzf "$tarball" 2>/dev/null | head -1 || true)"   # head stops tar early: not an error
 	strip=0
 	case "$top" in */*) strip=1 ;; esac   # packages hold a top-level piebb/ folder
 	discard_test_files                     # start from the release, not from an earlier test
@@ -96,7 +97,7 @@ fi
 
 say "Checking for releases"
 git fetch --quiet --tags --force origin || die "couldn't reach the PieBB repository"
-latest="$(git tag -l 'v*' --sort=-v:refname | head -1)"
+latest="$(git tag -l 'v*' --sort=-v:refname | head -1 || true)"
 [ -n "$latest" ] || die "no releases found"
 
 if [ "$current" = "$latest" ] && [ "$dirty" = 0 ] && [ "$force" = 0 ]; then

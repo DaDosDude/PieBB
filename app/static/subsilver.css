@@ -42,7 +42,9 @@ td.spaceRow { background: #D1D7DC; height: 1px; padding: 0; }
 .postbody blockquote { margin: 6px 0 6px 12px; padding: 6px; background: #FAFAFA; border: 1px solid #C2CFDF; font-size: 11px; }
 .postbody pre, .postbody code { font: 11px Courier, "Courier New", monospace; color: #060; background: #FAFAFA; }
 .postbody pre { border: 1px solid #D1D7DC; padding: 6px; overflow-x: auto; }
-.postbody table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; } .postbody td, .postbody th { border: 1px solid #98AAB1; padding: 2px 4px; color: #000; background: none; height: auto; }
+.postbody table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; } .postbody td, .postbody th { border: 1px solid #98AAB1; padding: 2px 4px; color: inherit; background: none; height: auto;
+  font-size: inherit; white-space: normal; vertical-align: top; }
+.postbody th { font-weight: bold; text-align: left; }
 hr { border: 0; border-top: 1px solid #D1D7DC; }
 
 /* folder icons (pure CSS) */
