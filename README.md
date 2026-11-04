@@ -48,6 +48,20 @@ forum.example.com {
 
 Logins use the visitor's existing PieFed account. PieBB has no accounts of its own.
 
+## Updating
+
+From the PieBB folder:
+
+```sh
+./update.sh
+```
+
+It switches to the newest release, rebuilds and starts it, and goes back to the previous version if the new one
+doesn't come up. Your `.env` and the `piebb-data` volume (settings, themes) are left alone.
+
+To try a build before it's released: `./update.sh --test piebb.tar.gz`. The next plain `./update.sh` removes it
+again and returns to the latest release.
+
 ## Configuration
 
 Settings live in `.env` (see `.env.example`):
