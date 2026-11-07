@@ -57,7 +57,7 @@
   {% endif %}
 
   <div class="copyright">
-    Powered by <a href="https://codeberg.org/rimu/pyfedi" rel="noopener">PieFed</a> &middot; <a href="https://github.com/DaDosDude/PieBB" rel="noopener">PieBB</a> {{ piebb_version }}
+    Powered by <a href="https://codeberg.org/rimu/pyfedi" rel="noopener" target="_blank">PieFed</a> &middot; <a href="https://github.com/DaDosDude/PieBB" rel="noopener" target="_blank">PieBB</a> {{ piebb_version }}
     &middot; All times are <span id="bbtz">{{ config.TIMEZONE }}</span>
     {% if theme.choices|length > 1 %}
     <form class="inline themepick" method="post" action="{{ url_for('bb.set_theme') }}">

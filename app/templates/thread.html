@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m with context %}
+{% from "_about_forum.html" import about_forum with context %}
 {% set p = pv.post %}
 {% block title %}{{ p.title }}{% if page > 1 %} - Page {{ page }}{% endif %} :: {% endblock %}
 
@@ -18,6 +19,10 @@
 {% endmacro %}
 {% macro edited(when) %}{% if when %} <span class="edited" title="Last edited {{ when[:16]|replace('T', ' ') }} UTC">(edited)</span>{% endif %}{% endmacro %}
 
+{% block sidebar %}
+<div class="about-forum-side">{{ about_forum(pv.community, forum_counts, True) }}<br></div>
+{% include "sidebar.html" %}
+{% endblock %}
 {% block pagehead %}
 <a class="maintitle" style="font-size:20px" href="{{ url_for('bb.thread', post_id=p.id) }}">{{ p.title }}</a>
 {% for f in pv.flair_list %}{{ m.flair(f) }} {% endfor %}
@@ -52,9 +57,9 @@
       <hr>
       <div class="postbody">
         {% if p.url and p.url|url != '#' %}
-          {% if p.url is image %}<a href="{{ p.url|url }}" rel="nofollow noopener"><img src="{{ p.url|img }}" alt="{{ p.alt_text or '' }}" style="max-width:100%"></a>
+          {% if p.url is image %}<a href="{{ p.url|url }}" rel="nofollow noopener" target="_blank"><img src="{{ p.url|img }}" alt="{{ p.alt_text or '' }}" style="max-width:100%"></a>
           {% else %}<div class="linkbox">{% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url|img }}" alt="" loading="lazy"><br>{% endif %}
-            Link: <a href="{{ p.url|url }}" rel="nofollow noopener ugc">{{ p.url }}</a></div>{% endif %}
+            Link: <a href="{{ p.url|url }}" rel="nofollow noopener ugc" target="_blank">{{ p.url }}</a></div>{% endif %}
         {% endif %}
         {% if p.deleted %}<i class="muted">[deleted by its author]</i>{% else %}{{ p.body|md }}{{ m.post_extras(p) }}{% endif %}
       </div>
@@ -65,7 +70,7 @@
   </tr>
   <tr>
     <td class="row1 gensmall">{{ m.votes('post', p.id, pv.counts, pv.my_vote) }}
-      &nbsp; <a href="{{ p.ap_id|url }}" rel="nofollow noopener">Original</a>
+      &nbsp; <a href="{{ p.ap_id|url }}" rel="nofollow noopener" target="_blank">Original</a>
       {{ m.save_btn('post', p.id, pv.saved) }}
       {% if logged_in %}&nbsp;|&nbsp; <a href="{{ url_for('bb.crosspost', post_id=p.id) }}" title="Post this topic in another forum too">Crosspost</a>{% endif %}
       {{ m.useractions('post', p.id, pv.creator, p.deleted) }}
@@ -93,7 +98,7 @@
         {% set pc = c.parent.comment %}
         <div class="quotehead"><a href="{{ plink }}">{{ c.parent.creator|pname }} wrote:</a></div>
         <div class="quote">{% if pc.deleted %}<i>[deleted]</i>{% elif pc.removed %}<i>[removed by moderator]</i>{% else %}{% set qtext, qimgs = pc.body|quote_parts %}{{ qtext|truncate(400, True) }}
-          {% if qimgs %}<div class="quoteimgs">{% for src in qimgs %}<a href="{{ src }}" rel="nofollow noopener"><img src="{{ src }}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}{% endif %}</div>
+          {% if qimgs %}<div class="quoteimgs">{% for src in qimgs %}<a href="{{ src }}" rel="nofollow noopener" target="_blank"><img src="{{ src }}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}{% endif %}</div>
         {% else %}<div class="replyto">In reply to <a href="{{ plink }}">an earlier post</a></div>{% endif %}
       {% endif %}
       <div class="postbody">
@@ -122,6 +127,7 @@
     <span class="gensmall"><a href="#top">Back to top</a></span></td>
 </tr></table>
 
+<div class="about-forum-bottom"><br>{{ about_forum(pv.community, forum_counts, True) }}</div>
 {% if logged_in and not p.locked %}
 <br>
 <form method="post" action="{{ url_for('bb.reply', post_id=p.id) }}">{{ m.csrf() }}

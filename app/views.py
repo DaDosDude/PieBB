@@ -479,8 +479,13 @@ def thread(post_id):
     if logged_in():
         apply_votes("post", [pv])
         apply_votes("comment", comments)
+    # the forum's sidebar box: its description and numbers come from the shared statistics cache
+    cid = (pv.get("community") or {}).get("id")
+    forum_counts = piefed.community_counts([cid]).get(cid) if cid else None
+    pv["community"] = _renamed_community(dict(pv.get("community") or {},
+                                              description=(forum_counts or {}).get("description")))
     return render_template("thread.html", pv=pv, comments=comments, page=page, pages=pages,
-                           offset=(page - 1) * COMMENTS_PER_PAGE,
+                           offset=(page - 1) * COMMENTS_PER_PAGE, forum_counts=forum_counts,
                            has_next=len(comments) >= COMMENTS_PER_PAGE)
 
 

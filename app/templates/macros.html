@@ -159,7 +159,7 @@
 {% macro post_extras(p) %}
 {% if p.poll and p.poll.choices %}{{ poll_box(p) }}{% endif %}
 {% if p.event %}{{ event_box(p.event) }}{% endif %}
-{% if p.gallery %}<div class="gallery">{% for u in p.gallery %}{% if u|url != '#' %}<a href="{{ u|url }}" rel="nofollow noopener"><img src="{{ u|img }}" alt="" loading="lazy"></a>{% endif %}{% endfor %}</div>{% endif %}
+{% if p.gallery %}<div class="gallery">{% for u in p.gallery %}{% if u|url != '#' %}<a href="{{ u|url }}" rel="nofollow noopener" target="_blank"><img src="{{ u|img }}" alt="" loading="lazy"></a>{% endif %}{% endfor %}</div>{% endif %}
 {% endmacro %}
 
 {% macro poll_box(p) %}
@@ -191,9 +191,9 @@
   <tr><td class="row1 gen" width="30%"><b>Starts</b></td><td class="row2 gen">{{ e.start|bbdate }}</td></tr>
   {% if e.end %}<tr><td class="row1 gen"><b>Ends</b></td><td class="row2 gen">{{ e.end|bbdate }}</td></tr>{% endif %}
   {% if e.location %}<tr><td class="row1 gen"><b>Where</b></td><td class="row2 gen">{{ e.location }}</td></tr>{% endif %}
-  {% if e.online and e.online_link and e.online_link|url != '#' %}<tr><td class="row1 gen"><b>Online</b></td><td class="row2 gen"><a href="{{ e.online_link|url }}" rel="nofollow noopener">{{ e.online_link|domain }}</a></td></tr>{% endif %}
+  {% if e.online and e.online_link and e.online_link|url != '#' %}<tr><td class="row1 gen"><b>Online</b></td><td class="row2 gen"><a href="{{ e.online_link|url }}" rel="nofollow noopener" target="_blank">{{ e.online_link|domain }}</a></td></tr>{% endif %}
   <tr><td class="row1 gen"><b>Going</b></td><td class="row2 gen">{{ e.participants }}{% if e.max %} / {{ e.max }}{% endif %}{% if e.full %} (full){% endif %}</td></tr>
-  {% if e.tickets and e.tickets|url != '#' %}<tr><td class="row1 gen"><b>Tickets</b></td><td class="row2 gen"><a href="{{ e.tickets|url }}" rel="nofollow noopener">{{ e.tickets|domain }}</a></td></tr>{% endif %}
+  {% if e.tickets and e.tickets|url != '#' %}<tr><td class="row1 gen"><b>Tickets</b></td><td class="row2 gen"><a href="{{ e.tickets|url }}" rel="nofollow noopener" target="_blank">{{ e.tickets|domain }}</a></td></tr>{% endif %}
 </table>
 {% endmacro %}
 

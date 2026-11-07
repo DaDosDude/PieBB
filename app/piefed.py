@@ -476,8 +476,12 @@ def _anon_getter(budget):
 
 def _counts_fetch(anon_get):
     def fetch(cid):
-        data = anon_get("/community", {"id": cid})
-        return ((data or {}).get("community_view") or {}).get("counts")
+        cv = (anon_get("/community", {"id": cid}) or {}).get("community_view") or {}
+        if cv.get("counts") is None:
+            return None
+        # the description rides along for the forum box beside threads ("counts2": entries cached
+        # before that lacked it)
+        return dict(cv["counts"], description=(cv.get("community") or {}).get("description"))
     return fetch
 
 
@@ -510,12 +514,12 @@ def _last_fetch(anon_get):
 
 def community_counts(community_ids, budget=2.5):
     """{community_id: counts}. Anonymous /community lookups, shared by all visitors."""
-    return _batch([("counts", COUNTS_TTL, _counts_fetch(_anon_getter(budget)))], community_ids, budget)[0]
+    return _batch([("counts2", COUNTS_TTL, _counts_fetch(_anon_getter(budget)))], community_ids, budget)[0]
 
 
 def community_stats(community_ids, budget=2.5):
     """(counts, last posts) for the index in one parallel round. Last post = the community's most
     recently active topic (see _last_fetch)."""
     anon_get = _anon_getter(budget)
-    return tuple(_batch([("counts", COUNTS_TTL, _counts_fetch(anon_get)), ("last", LAST_TTL, _last_fetch(anon_get))],
+    return tuple(_batch([("counts2", COUNTS_TTL, _counts_fetch(anon_get)), ("last", LAST_TTL, _last_fetch(anon_get))],
                         community_ids, budget))

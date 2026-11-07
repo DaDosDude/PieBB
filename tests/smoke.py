@@ -188,10 +188,10 @@ if STYLE:
 # --- About this forum placement
 cp = anon.get(BASE + "/c/retrogaming").text
 side = cp.split('<aside class="sidebar-side">')[1] if '<aside class="sidebar-side">' in cp else ""
-check("about-forum in desktop sidebar", "About this forum" in side and "about-forum-side" in side)
-check("about-forum before site sidebar", side.find("About this forum") < side.find("Visit "))
+check("about-forum in desktop sidebar", "about-forum-side" in side)
+check("about-forum before site sidebar", -1 < side.find("about-forum-side") < side.find("Visit "))
 check("about-forum bottom copy for mobile", "about-forum-bottom" in cp.split('<aside')[0])
-check("no about-forum on topic pages", "About this forum" not in anon.get(BASE + "/t/10").text)
+check("no about-forum on topic pages", "about-forum-side" not in anon.get(BASE + "/t/10").text)
 
 # --- browser-local times
 page = anon.get(BASE + "/p/101").text

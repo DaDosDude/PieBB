@@ -55,7 +55,22 @@ def markdown(text):
         link_rel="nofollow noopener ugc",
         attribute_filter=_absolute_urls_only,
     )
-    return Markup(html)
+    return Markup(_EXTERNAL_A.sub(_new_tab, html))
+
+
+_EXTERNAL_A = re.compile(r'<a href="(https?://[^"]*)"')
+
+
+def _new_tab(m):
+    """Links to other sites open in a new tab, as on PieFed; links to this forum stay in place."""
+    if has_app_context():
+        from flask import request
+        try:
+            if request and urlparse(html_unescape(m.group(1))).hostname == request.host.split(":")[0]:
+                return m.group(0)
+        except (RuntimeError, ValueError):
+            pass
+    return m.group(0) + ' target="_blank"'
 
 
 def _absolute_urls_only(tag, attr, value):

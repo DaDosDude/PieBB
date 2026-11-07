@@ -2,15 +2,9 @@
 {% import "macros.html" as m with context %}
 {% import "_forum_rows.html" as fr with context %}
 {% block title %}{{ topic.name if kind != 'community' else cv.community.title }} :: {% endblock %}
-{% macro about_forum() %}
-<table class="forumline sidebar">
-  <tr><th>About this forum</th></tr>
-  <tr><td class="row1 postbody">{{ cv.community.description|md }}</td></tr>
-  <tr><td class="row2 gensmall">{{ cv.counts.members or cv.counts.subscriptions_count }} members &middot; {{ cv.counts.post_count }} topics &middot; {{ cv.counts.post_reply_count }} posts</td></tr>
-</table>
-{% endmacro %}
+{% from "_about_forum.html" import about_forum with context %}
 {% block sidebar %}
-{% if kind == 'community' and cv.community.description %}<div class="about-forum-side">{{ about_forum() }}<br></div>{% endif %}
+{% if kind == 'community' %}<div class="about-forum-side">{{ about_forum(cv.community, cv.counts) }}<br></div>{% endif %}
 {% include "sidebar.html" %}
 {% endblock %}
 {% block pagehead %}
@@ -70,7 +64,7 @@
     {{ m.pagination(page, has_next, pages) }}</td>
 </tr></table>
 
-{% if kind == 'community' and cv.community.description %}
-<div class="about-forum-bottom"><br>{{ about_forum() }}</div>
+{% if kind == 'community' %}
+<div class="about-forum-bottom"><br>{{ about_forum(cv.community, cv.counts) }}</div>
 {% endif %}
 {% endblock %}

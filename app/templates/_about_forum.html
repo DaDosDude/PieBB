@@ -1,0 +1,9 @@
+{# The forum box: a community's name, logo, description and numbers, beside its topics and its threads #}
+{% macro about_forum(c, counts, linked=False) %}
+<table class="forumline sidebar">
+  <tr><th>{% if linked %}<a class="th-link" href="{{ url_for('bb.community', name=c|cref) }}">{{ c.title or c.name }}</a>{% else %}{{ c.title or c.name }}{% endif %}</th></tr>
+  {% if c.icon and c.icon|url != '#' %}<tr><td class="row1 center forumlogo"><img src="{{ c.icon|img }}" alt=""></td></tr>{% endif %}
+  {% if c.description %}<tr><td class="row1 postbody">{{ c.description|md }}</td></tr>{% endif %}
+  {% if counts %}<tr><td class="row2 gensmall">{{ counts.members or counts.subscriptions_count }} members &middot; {{ counts.post_count }} topics &middot; {{ counts.post_reply_count }} posts</td></tr>{% endif %}
+</table>
+{% endmacro %}
