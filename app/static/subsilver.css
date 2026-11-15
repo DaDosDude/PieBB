@@ -115,6 +115,7 @@ details.modbar[open] > form, details.modbar[open] > a { margin-left: 4px; }
 .tabs a { margin-right: 8px; } .tabs a.on { color: #DD6900; font-weight: bold; }
 .right { text-align: right; } .center { text-align: center; } .nowrap { white-space: nowrap; }
 .muted { color: #555; }
+.hiddennote { background: #EFEFEF; border: 1px solid #98AAB1; color: #333; padding: 6px; margin: 6px 0; font-size: 11px; }
 
 /* communities listed under a subtopic */
 td.nested { padding-left: 46px; }

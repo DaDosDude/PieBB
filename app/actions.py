@@ -482,15 +482,22 @@ def saved():
 def block(kind, obj_id):
     if (r := require_login()):
         return r
-    if kind not in ("user", "community"):
+    if kind not in ("user", "community", "instance"):
         abort(400)
     me, _, _ = _me()
     if kind == "user" and obj_id == me.get("id"):
         abort(400, "You can't block yourself.")
     blocking = request.form.get("block") != "0"
-    key = "person_id" if kind == "user" else "community_id"
-    piefed.post(f"/{kind}/block", {key: obj_id, "block": blocking})
+    if kind == "instance":
+        piefed.post("/site/block", {"instance_id": obj_id, "block": blocking})
+    else:
+        key = "person_id" if kind == "user" else "community_id"
+        piefed.post(f"/{kind}/block", {key: obj_id, "block": blocking})
     remember_block(kind, obj_id, blocking)
+    if kind == "instance":
+        flash("Site blocked: you won't see its posts any more." if blocking else
+              "Site unblocked: its posts and replies show again.")
+        return back(url_for("bb.blocked"))
     what = "User" if kind == "user" else "Forum"
     flash(f"{what} blocked: you won't see their posts any more." if blocking and kind == "user"
           else f"{what} blocked: its topics are hidden from your lists." if blocking
@@ -506,7 +513,9 @@ def blocked():
     people = _with_recent(my.get("person_blocks") or [], "user", "/user", "person_id", "person_view", "person")
     communities = _with_recent(my.get("community_blocks") or [], "community", "/community", "id",
                                "community_view", "community")
-    return render_template("blocked.html", people=people, communities=communities)
+    recent = recent_blocks("instance")  # PieFed's list lags; a site is only unblocked here
+    sites = [x for x in my.get("instance_blocks") or [] if recent.get(x["id"], True)]
+    return render_template("blocked.html", people=people, communities=communities, sites=sites)
 
 
 def _with_recent(items, kind, path, param, view_key, obj_key):

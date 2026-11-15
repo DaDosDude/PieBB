@@ -103,8 +103,39 @@ def quote_parts(text, max_images=4):
     (already proxied) addresses of its first few images, shown as thumbnails in the quote."""
     if not text:
         return "", []
+    text = without_quotes(text) or text   # their own words, not what they quoted (unless that's all)
     srcs = [html_unescape(u) for u in _IMG_SRC.findall(str(markdown(hide_spoilers(text))))][:max_images]
     return " ".join(plain(text).replace("[image]", " ").split()), srcs
+
+
+_QUOTE_PREFIX = re.compile(r"^[ \t]{0,3}>[ \t]?")
+
+
+def without_quotes(text):
+    """Markdown with its top-level "> ..." blocks left out."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    drop = set()
+    for tok in _md.parse(text):
+        if tok.type == "blockquote_open" and tok.level == 0 and tok.map:
+            drop.update(range(tok.map[0], tok.map[1]))
+    return "\n".join(ln for n, ln in enumerate(lines) if n not in drop).strip()
+
+
+def quotes_whole(body, parent_body):
+    """True when a reply already quotes its parent comment in full (a top-level "> ..." block with the
+    same text), so the automatic "X wrote:" quote above it would only show the same text twice."""
+    if not body or not parent_body or ">" not in body:
+        return False
+    want = plain(parent_body)
+    if not want:
+        return False
+    lines = body.replace("\r\n", "\n").split("\n")
+    for tok in _md.parse(body):
+        if tok.type == "blockquote_open" and tok.level == 0 and tok.map:
+            inner = "\n".join(_QUOTE_PREFIX.sub("", ln, count=1) for ln in lines[tok.map[0]:tok.map[1]])
+            if plain(inner) == want:
+                return True
+    return False
 
 
 def safe_url(url):

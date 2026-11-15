@@ -2,7 +2,7 @@
 {% import "macros.html" as m with context %}
 {% block title %}Blocked :: {% endblock %}
 {% block content %}
-<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Blocked users &amp; forums</td></tr></table>
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Blocked users, forums &amp; sites</td></tr></table>
 <table class="forumline">
   <tr><th colspan="2">Blocked users</th></tr>
   {% for u in people %}
@@ -20,6 +20,16 @@
       <td class="row2 center nowrap">{{ m.block_btn('community', c.id, True, c.title or c.name) }}</td></tr>
   {% else %}
   <tr><td class="row1 center gen" colspan="2">You haven't blocked any forums. Use "Block forum" at the top of a forum.</td></tr>
+  {% endfor %}
+</table>
+<br>
+<table class="forumline" id="sites">
+  <tr><th colspan="2">Blocked sites</th></tr>
+  {% for x in sites %}
+  <tr><td class="row1 gen" width="100%">{{ x.domain }}<br><span class="gensmall muted">Topics, replies and users from this site are hidden from you, and so are replies to their posts.</span></td>
+      <td class="row2 center nowrap">{{ m.block_btn('instance', x.id, True, x.domain) }}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">You haven't blocked any sites.</td></tr>
   {% endfor %}
 </table>
 <p class="gensmall">Blocking happens on {{ site.name or 'PieFed' }} itself, so it also applies in other apps you use with this account.</p>

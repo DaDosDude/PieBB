@@ -226,7 +226,7 @@
 <form class="inline" method="post" action="{{ url_for('bb.block', kind=kind, obj_id=obj_id) }}"
       {% if not is_blocked %}onsubmit="return confirm({{ ('Block ' ~ label ~ '?')|tojson|forceescape }})"{% endif %}>{{ csrf() }}
   <input type="hidden" name="block" value="{{ '0' if is_blocked else '1' }}">
-  <button class="btn">{{ 'Unblock' if is_blocked else 'Block' }}{{ ' ' ~ ('user' if kind == 'user' else 'forum') }}</button></form>
+  <button class="btn">{{ 'Unblock' if is_blocked else 'Block' }}{{ ' ' ~ {'user': 'user', 'instance': 'site'}.get(kind, 'forum') }}</button></form>
 {% endif %}
 {% endmacro %}
 

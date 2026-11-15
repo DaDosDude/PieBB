@@ -233,7 +233,10 @@ def user_me(r):
             "person_blocks": [x for x in (person(d(v).get("target")) for v in lst(r.get("person_blocks")))
                               if x["id"] is not None],
             "community_blocks": [x for x in (community(d(v).get("community")) for v in lst(r.get("community_blocks")))
-                                 if x["id"] is not None]}
+                                 if x["id"] is not None],
+            "instance_blocks": [x for x in ({"id": i(d(d(v).get("instance")).get("id")),
+                                             "domain": s(d(d(v).get("instance")).get("domain"))}
+                                            for v in lst(r.get("instance_blocks"))) if x["id"] is not None]}
 
 
 def _resp(**fields):
@@ -414,6 +417,8 @@ NORMALIZERS = {
         for x in lst(v) if person(d(x).get("banned_user"))["id"] is not None], next_page=s),
     "/community/list": _resp(communities=_community_list),
     "/user": _resp(person_view=person_view, posts=_post_list, comments=_comment_list, moderates=moderator_views),
+    "/resolve_object": _resp(post=post_view, comment=comment_view, community=community_view, person=person_view,
+                             feed=lambda v: {"id": i(d(v).get("id") if "id" in d(v) else d(d(v).get("feed")).get("id"))}),
     "/search": _resp(posts=_post_list, comments=_comment_list, communities=_community_list, users=_person_list),
     "/post/report/list": _resp(post_reports=lambda v: _reports(v, post_report_view, "post_report")),
     "/comment/report/list": _resp(comment_reports=lambda v: _reports(v, comment_report_view, "comment_report")),

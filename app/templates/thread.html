@@ -43,6 +43,9 @@
 
 {% endblock %}
 {% block content %}
+{% macro hidden_note() %}{% if hidden %}<div class="hiddennote">{{ hidden }} {{ 'reply' if hidden == 1 else 'replies' }} in this topic {{ 'is' if hidden == 1 else 'are' }} hidden from you, because you block {{ 'its' if hidden == 1 else 'their' }} author or the site they post from (replies to blocked posts are hidden too). Reply numbers can differ from what others see.
+  <a href="{{ url_for('bb.blocked') }}">Show or unblock</a></div>{% endif %}{% endmacro %}
+{{ hidden_note() }}
 <table class="forumline thread">
   <tr class="posthead"><th width="150">Author</th><th>Message</th></tr>
 
@@ -94,7 +97,10 @@
       <hr>
       {% if c.parent_id %}
         {% set plink = '#c' ~ c.parent_id if c.parent_here else url_for('bb.comment_link', comment_id=c.parent_id) %}
-        {% if c.parent %}
+        {% if c.parent and not (c.parent.comment.deleted or c.parent.comment.removed) and cm.body|quotes_whole(c.parent.comment.body) %}
+        {# the reply quotes its parent in full already: only who it quotes, no second copy #}
+        <div class="quotehead"><a href="{{ plink }}">{{ c.parent.creator|pname }} wrote:</a></div>
+        {% elif c.parent %}
         {% set pc = c.parent.comment %}
         <div class="quotehead"><a href="{{ plink }}">{{ c.parent.creator|pname }} wrote:</a></div>
         <div class="quote">{% if pc.deleted %}<i>[deleted]</i>{% elif pc.removed %}<i>[removed by moderator]</i>{% else %}{% set qtext, qimgs = pc.body|quote_parts %}{{ qtext|truncate(400, True) }}
@@ -120,6 +126,7 @@
 
   <tr><td class="catBottom" colspan="2"><a name="bottom"></a></td></tr>
 </table>
+{{ hidden_note() }}
 
 <table width="100%"><tr>
   <td>{% if not p.locked %}{{ m.button('reply_new', 'Post Reply', url_for('bb.reply', post_id=p.id)) }}{% endif %}</td>

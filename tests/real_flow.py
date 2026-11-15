@@ -97,6 +97,17 @@ r = user.post(BB + f"/delete/comment/{cid}", data={"csrf": t, "deleted": "1"}, h
 check("delete own reply reached PieFed", pf("/comment", id=cid)["comment_view"]["comment"]["deleted"] is True)
 r = user.post(BB + f"/delete/comment/{cid}", data={"csrf": t, "deleted": "0"}, headers={"Referer": BB + f"/p/{NEW}"})
 check("restore own reply reached PieFed", pf("/comment", id=cid)["comment_view"]["comment"]["deleted"] is False)
+# a reply that quotes its parent in full doesn't get the automatic quote as well
+r = user.post(BB + f"/p/{NEW}/reply", data={"csrf": t, "body": "> first reply, edited\n\nfull quote reply", "parent": cid})
+th = user.get(BB + f"/p/{NEW}").text
+check("full quote: no automatic copy", "full quote reply" in th and th.count("first reply, edited") == 2
+      and th.count('class="quote"') == 0, th.count("first reply, edited"))
+fq = re.findall(r'name="c(\d+)"', th)
+r = user.post(BB + f"/p/{NEW}/reply", data={"csrf": t, "body": "answer to the quoter", "parent": int(fq[-1]) if fq else 0})
+box = re.findall(r'<div class="quote">(.*?)</div>', user.get(BB + f"/p/{NEW}").text, re.S)
+check("quote box leaves out what the parent quoted", any("full quote reply" in b and "first reply" not in b for b in box), box)
+r = user.post(BB + f"/p/{NEW}/reply", data={"csrf": t, "body": "partial reply", "parent": cid})
+check("partial reply keeps the automatic quote", user.get(BB + f"/p/{NEW}").text.count('class="quote"') == 2)
 r = victim.get(BB + f"/p/{NEW}/edit")
 check("someone else can't edit it", r.status_code == 403)
 tv = csrf(victim, f"/p/{NEW}")
@@ -626,6 +637,80 @@ victim.post(BB + "/alerts/topic/1", data={"csrf": t, "alert": "0"}, headers={"Re
 check("category new-topic alerts off", "Alert me of new topics" in victim.get(BB + "/t/1").text)
 check("guests get no alert buttons", "new-topic alerts" not in requests.get(BB + "/t/1").text
       and "Alert me of new topics" not in requests.get(BB + "/t/1").text)
+
+# ---------------- fediverse links in the search box open here
+from urllib.parse import urlparse as _up
+pap = pf("/post", id=NEW)["post_view"]["post"]["ap_id"]
+host = _up(pap).netloc
+r = requests.get(BB + "/search", params={"q": pap}, allow_redirects=False)
+check("post link opens the topic", r.status_code == 302 and r.headers["Location"].endswith(f"/p/{NEW}"), r.headers.get("Location"))
+cap = pf("/comment", id=cid)["comment_view"]["comment"]["ap_id"]
+r = requests.get(BB + "/search", params={"q": cap}, allow_redirects=False)
+check("comment link opens the reply", r.status_code == 302 and r.headers["Location"].endswith(f"/comment/{cid}"), r.headers.get("Location"))
+r = user.get(BB + "/search", params={"q": f"!retrogaming@{host}"}, allow_redirects=False)
+check("!forum@site opens the forum", r.status_code == 302 and "/c/retrogaming" in r.headers["Location"], r.headers.get("Location"))
+r = user.get(BB + "/search", params={"q": f"@plainuser@{host}"}, allow_redirects=False)
+check("@user@site opens the profile", r.status_code == 302 and "/u/id/" in r.headers["Location"], r.headers.get("Location"))
+r = requests.get(BB + "/search", params={"q": "https://nowhere.invalid/comment/1"})
+check("unknown link: message, no error", r.status_code == 200 and "open that link here" in r.text and "Log in" in r.text)
+
+# ---------------- topic pages: every topic on exactly one page, also when old topics get bumped
+def pf_post(path, body, who="dosadmin"):
+    pf("/site", user=who)  # makes sure there is a token
+    return requests.post(PF + path, json=body, headers={"Authorization": "Bearer " + _pf_tokens[who]}).json()
+
+
+emu = pf("/community", name="emulation")["community_view"]["community"]["id"]
+made = []
+for n in range(34):
+    made.append(pf_post("/post", {"title": f"paging topic {n:02d}", "community_id": emu})["post_view"]["post"]["id"])
+    time.sleep(0.05)
+for pid in made[:10]:  # the oldest ten get replies: on page 1 now, pushing newer topics off it
+    pf_post("/comment", {"post_id": pid, "body": "bump"})
+seen_pages, pg = [], 1
+while pg < 6:
+    html = user.get(BB + f"/c/emulation?page={pg}").text
+    ids = [int(x) for x in re.findall(r'class="topictitle" href="/p/(\d+)"', html)]
+    seen_pages.append(ids)
+    if f"page={pg + 1}" not in html:
+        break
+    pg += 1
+allseen = [x for ids in seen_pages for x in ids]
+check("topic pages: every topic listed", set(made) <= set(allseen), sorted(set(made) - set(allseen)))
+check("topic pages: no topic twice", len(allseen) == len(set(allseen)), len(allseen) - len(set(allseen)))
+check("topic pages: bumped old topics on page 1", set(made[:10]) <= set(seen_pages[0]))
+
+# ---------------- blocked sites and the hidden-replies note
+import subprocess
+sql = ("insert into instance (domain, software, created_at, updated_at, dormant, gone_forever, trusted) "
+       "select 'blocked.example', 'lemmy', now(), now(), false, false, false "
+       "where not exists (select 1 from instance where domain='blocked.example'); "
+       "select id from instance where domain='blocked.example';")
+out = subprocess.run(["psql", "-qtA", "-h", "127.0.0.1", "-p", "5433", "-U", "postgres", "pyfedi", "-c", sql],
+                     capture_output=True, text=True)
+inst = int(out.stdout.split()[-1]) if out.stdout.split() else 0
+check("test instance made", inst > 0, out.stderr[:200])
+t = csrf(modguy := mod)
+r = mod.post(BB + f"/block/instance/{inst}", data={"csrf": t, "block": "1"}, headers={"Referer": BB + "/blocked"})
+check("block site", "Site blocked" in r.text, flashes(r))
+check("blocked site listed with unblock", "blocked.example" in mod.get(BB + "/blocked").text)
+r = mod.post(BB + f"/block/instance/{inst}", data={"csrf": t, "block": "0"}, headers={"Referer": BB + "/blocked"})
+check("unblock site", "Site unblocked" in r.text and "blocked.example" not in mod.get(BB + "/blocked").text, flashes(r))
+check("guest can't unblock sites", requests.post(BB + f"/block/instance/{inst}", allow_redirects=False).status_code in (302, 400, 403))
+
+th = victim.get(BB + f"/p/{NEW}").text
+check("no hidden-replies note without blocks", "hidden from you" not in th)
+tv = csrf(victim)
+victim.post(BB + f"/block/user/{PLAIN_ID}", data={"csrf": tv, "block": "1"})
+total = pf("/post", id=NEW)["post_view"]["counts"]["comments"]
+visible = len(pf("/comment/list", user="victim", post_id=NEW, sort="Old", limit=50, max_depth=100)["comments"])
+th = victim.get(BB + f"/p/{NEW}").text
+want = total - visible
+check("hidden-replies note with the right count", want > 0 and f"{want} {'reply' if want == 1 else 'replies'} in this topic" in th
+      and th.count('class="hiddennote"') == 2, (total, visible, re.findall(r'class="hiddennote">(\d+)', th)))
+check("note links to the blocked page", 'href="/blocked">Show or unblock' in th)
+victim.post(BB + f"/block/user/{PLAIN_ID}", data={"csrf": tv, "block": "0"})
+check("note gone after unblocking", "hidden from you" not in victim.get(BB + f"/p/{NEW}").text)
 
 # ---------------- logout revokes the PieFed token
 tok_before = admin.cookies.get("piebb")

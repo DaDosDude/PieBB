@@ -1,3 +1,4 @@
+import re
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -323,9 +324,7 @@ def bumped_topics(query, page, pin_sticky):
     latest reply, new topics included. PieFed's "Active" sort leaves out topics without replies, so it
     is merged with those from "New". Later pages use posting order, to keep API calls down."""
     if page > BUMP_PAGES:
-        posts = [p for p in piefed.get("/post/list", sort=TOPIC_SORT, page=page, limit=PER_PAGE, **query)
-                 .get("posts") or [] if not (pin_sticky and p["post"]["sticky"])]
-        return [], posts, len(posts) >= PER_PAGE
+        return later_page(query, page, pin_sticky)
     need = page * PER_PAGE + 1  # one extra tells whether there is a next page
     sticky, seen, pool = [], set(), []
     active = _stream(query, "Active")
@@ -357,6 +356,35 @@ def bumped_topics(query, page, pin_sticky):
     pool.sort(key=_activity, reverse=True)
     start = (page - 1) * PER_PAGE
     return (sticky if page == 1 else []), pool[start:start + PER_PAGE], len(pool) > start + PER_PAGE
+
+
+def later_page(query, page, pin_sticky):
+    """A page after the bumped ones: posting order, leaving out the topics the bumped pages already
+    show. Without that, a recent topic pushed off page 1 by older ones with new replies would be on no
+    page at all (page 2 of the plain list starts after the newest PER_PAGE topics)."""
+    shown = []
+    for n in range(1, BUMP_PAGES + 1):  # PieFed's answers for these are cached for guests
+        sticky, topics, _ = bumped_topics(query, n, pin_sticky)
+        shown += sticky + topics
+    skip = {pv["post"]["id"] for pv in shown}
+    # This page's topics are among two pages of the plain list: the one it would show without the
+    # skipping, and the next (at most a page of topics is skipped before or inside that stretch).
+    window = []
+    for n in (page - BUMP_PAGES, page - BUMP_PAGES + 1):
+        batch = piefed.get("/post/list", sort=TOPIC_SORT, page=n, limit=PER_PAGE, ignore_sticky="true",
+                           **query).get("posts") or []
+        window += batch
+        if len(batch) < PER_PAGE:
+            break
+    if not window:
+        return [], [], False
+    newest_here = (window[0]["post"].get("published") or "")
+    # skipped topics posted after the window's first one sit before it in the plain list; the plain list
+    # minus skipped topics is therefore that many places further along
+    before = sum(1 for pv in shown if (pv["post"].get("published") or "") > newest_here)
+    rest = [pv for pv in window if pv["post"]["id"] not in skip and not (pin_sticky and pv["post"]["sticky"])]
+    posts = rest[before:before + PER_PAGE]
+    return [], posts, len(rest) > before + PER_PAGE or len(window) >= 2 * PER_PAGE
 
 
 def node_alert(kind, node_id):
@@ -454,6 +482,14 @@ def thread(post_id):
     if page > pages + 1:  # past the end (old link, or comments were removed): go to the last page
         return redirect(url_for("bb.thread", post_id=post_id, page=pages))
     comments = _comment_page(post_id, page)
+    if not comments and page > 1:
+        # PieFed's reply count includes replies hidden from this visitor (blocks): the page count can
+        # run past the last page they can see
+        return redirect(url_for("bb.thread", post_id=post_id, page=page - 1))
+    total = (pv.get("counts") or {}).get("comments") or 0
+    hidden = hidden_replies(post_id, total, page, pages, comments)
+    if hidden:  # page links only to pages they can see
+        pages = max(page, page_count(total - hidden, COMMENTS_PER_PAGE))
     by_id = {c["comment"]["id"]: c for c in comments}
     for c in comments:
         pid = comment_parent(c["comment"].get("path"))
@@ -485,8 +521,34 @@ def thread(post_id):
     pv["community"] = _renamed_community(dict(pv.get("community") or {},
                                               description=(forum_counts or {}).get("description")))
     return render_template("thread.html", pv=pv, comments=comments, page=page, pages=pages,
-                           offset=(page - 1) * COMMENTS_PER_PAGE, forum_counts=forum_counts,
+                           offset=(page - 1) * COMMENTS_PER_PAGE, forum_counts=forum_counts, hidden=hidden,
                            has_next=len(comments) >= COMMENTS_PER_PAGE)
+
+
+def hidden_replies(post_id, total, page, pages, comments):
+    """How many of a thread's replies PieFed leaves out for this visitor because they block the
+    author's account or site (replies to those go too); 0 if none. Only asked when they block
+    someone or some site: PieFed's reply count includes the hidden ones, its reply list doesn't."""
+    if not logged_in() or not total:
+        return 0
+    try:
+        my = piefed.get("/user/me", cache="user")
+    except piefed.SessionExpired:
+        raise
+    except ApiError:
+        return 0
+    if not (my.get("person_blocks") or my.get("instance_blocks")
+            or any(recent_blocks("user").values()) or any(recent_blocks("instance").values())):
+        return 0
+    if len(comments) < COMMENTS_PER_PAGE or page >= pages:  # this is the last page they can see
+        seen = (page - 1) * COMMENTS_PER_PAGE + len(comments)
+    else:
+        last = _comment_page(post_id, pages)
+        while not last and pages > page + 1:  # the count ran past the end: one page back
+            pages -= 1
+            last = _comment_page(post_id, pages)
+        seen = (pages - 1) * COMMENTS_PER_PAGE + len(last) if last else page * COMMENTS_PER_PAGE
+    return max(0, total - seen)
 
 
 def _comment_page(post_id, page):
@@ -975,9 +1037,40 @@ SEARCH_SORTS = (("", "Best match"), ("New", "Newest"), ("Old", "Oldest"), ("TopW
                 ("TopMonth", "Top this month"), ("TopYear", "Top this year"), ("TopAll", "Top of all time"))
 
 
+_REMOTE_REF = re.compile(r"^(https?://\S+|[!@~][\w.-]+@[\w.-]+\.\w+(?::\d+)?)$")
+
+
+def resolve_link(q):
+    """Where a fediverse link (or !forum@site / @user@site) opens in PieBB, via PieFed's resolve_object
+    (which fetches it from the other site when needed; that part needs a login). None if not found."""
+    try:
+        r = piefed.get("/resolve_object", q=q)
+    except piefed.SessionExpired:
+        raise
+    except ApiError:
+        return None
+    if (r["comment"].get("comment") or {}).get("id"):
+        return url_for("bb.comment_link", comment_id=r["comment"]["comment"]["id"])
+    if (r["post"].get("post") or {}).get("id"):
+        return url_for("bb.thread", post_id=r["post"]["post"]["id"])
+    if (r["community"].get("community") or {}).get("id"):
+        return url_for("bb.community", name=render.community_ref(r["community"]["community"]))
+    if (r["person"].get("person") or {}).get("id"):
+        return url_for("bb.profile_by_id", person_id=r["person"]["person"]["id"])
+    if r["feed"].get("id"):
+        return url_for("bb.feed", feed_id=r["feed"]["id"])
+    return None
+
+
 @bp.route("/search")
 def search():
     q = request.args.get("q", "").strip()
+    if _REMOTE_REF.match(q):
+        target = resolve_link(q)
+        if target:
+            return redirect(target)
+        flash("Couldn't open that link here." + ("" if session.get("jwt") else
+              " Log in to look up links from other sites that haven't reached this forum yet."))
     stype = request.args.get("type") if request.args.get("type") in SEARCH_TYPES else "Posts"
     sort = request.args.get("sort") if request.args.get("sort") in dict(SEARCH_SORTS) else ""
     page = page_arg()

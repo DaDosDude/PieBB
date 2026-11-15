@@ -77,6 +77,7 @@ def create_app():
         cssurl=lambda u: render.css_escape(imgproxy.proxied(u)),
         plain=render.plain,
         quote_parts=render.quote_parts,
+        quotes_whole=render.quotes_whole,
         bbdate=lambda v: render.bbdate(v, app.config["TIMEZONE"]),
         domain=render.domain,
         pname=render.person_name,
