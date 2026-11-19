@@ -115,6 +115,7 @@ details.modbar[open] > form, details.modbar[open] > a { margin-left: 4px; }
 .tabs a { margin-right: 8px; } .tabs a.on { color: #DD6900; font-weight: bold; }
 .right { text-align: right; } .center { text-align: center; } .nowrap { white-space: nowrap; }
 .muted { color: #555; }
+.usernote { font-style: italic; color: #806000; }
 .hiddennote { background: #EFEFEF; border: 1px solid #98AAB1; color: #333; padding: 6px; margin: 6px 0; font-size: 11px; }
 
 /* communities listed under a subtopic */
@@ -214,3 +215,12 @@ details > summary { cursor: pointer; }
 .reganswer { white-space: pre-wrap; margin-bottom: 4px; }
 .pmdate { display: block; margin-top: 2px; }
 @media (max-width: 700px) { .postbit .pmdate { display: inline; margin-left: 8px; } }
+
+details.inline-details { display: inline-block; vertical-align: middle; }
+details.inline-details > summary { list-style: none; cursor: pointer; display: inline-block; }
+details.inline-details > summary::-webkit-details-marker { display: none; }
+details.inline-details[open] form { margin-top: 4px; }
+.pmactions { margin-top: 6px; }
+.answer { color: #2E7D32; }
+.vote-up { color: #2E7D32; }
+.vote-down { color: #C62828; }

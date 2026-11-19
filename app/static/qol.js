@@ -142,4 +142,39 @@
     e.preventDefault();
     e.returnValue = "";
   });
+
+  // Name suggestions: <input data-suggest="!"> (forums), "@" (users), "~" (feeds) or "auto" offers matching
+  // names from PieFed as you type, through a <datalist>
+  var suggestTimer = null;
+  document.addEventListener("input", function (e) {
+    var el = e.target, prefix = el.getAttribute && el.getAttribute("data-suggest");
+    if (!prefix || !window.fetch) return;
+    if (prefix === "auto") {  // search boxes: only when what's typed starts with ! @ or ~
+      prefix = el.value.trim().charAt(0);
+      if ("!@~".indexOf(prefix) < 0 || !prefix) return;
+    }
+    var list = document.getElementById(el.getAttribute("list") || "");
+    if (!list) {
+      list = document.createElement("datalist");
+      list.id = "suggest-" + Math.random().toString(36).slice(2);
+      el.parentNode.appendChild(list);
+      el.setAttribute("list", list.id);
+    }
+    clearTimeout(suggestTimer);
+    var typed = el.value.trim().replace(/^[!@~]/, "");
+    if (typed.length < 2) return;
+    suggestTimer = setTimeout(function () {
+      fetch("/suggest?q=" + encodeURIComponent(prefix + typed), { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (names) {
+          while (list.firstChild) list.removeChild(list.firstChild);
+          names.forEach(function (n) {
+            var o = document.createElement("option");
+            o.value = n;
+            list.appendChild(o);
+          });
+        }).catch(function () {});
+    }, 250);
+  });
 })();
+

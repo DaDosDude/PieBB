@@ -213,7 +213,7 @@ def inject():
             "csrf_token": csrf_token, "logged_in": logged_in(), "theme": themes.current(),
             "forum_title": settings.get("forum_title") or (s.get("site") or {}).get("name") or "PieFed",
             "piefed_url": current_app.config["PIEFED_PUBLIC_URL"], "comments_per_page": COMMENTS_PER_PAGE,
-            "piebb_version": VERSION}
+            "piebb_version": VERSION, "piefed_has": piefed.has}
 
 
 @bp.app_errorhandler(HTTPException)
@@ -295,10 +295,18 @@ def topic(topic_id):
 
 @bp.route("/f/<int:feed_id>")
 def feed(feed_id):
-    f, parent = piefed.find_topic(piefed.feed_tree(), feed_id)
+    tree = piefed.feed_tree()
+    f, parent = piefed.find_topic(tree, feed_id)
+    # logged in: PieFed's own view of it (follow/owner state, also replaces the alert lookup); a feed
+    # missing from the cached list may be new from another site or private: ask PieFed for it
+    info = piefed.feed_info(feed_id) if (logged_in() or not f) else None
+    if not f:
+        f = info
+        if f and f.get("parent_id"):
+            parent = piefed.find_topic(tree, f["parent_id"])[0]
     if not f:
         abort(404)
-    return _node_listing("feed", f, parent, feed_id=feed_id)
+    return _node_listing("feed", f, parent, info=info, feed_id=feed_id)
 
 
 def _activity(pv):
@@ -402,15 +410,16 @@ def node_alert(kind, node_id):
     return node_id in (alerts.get("topics" if kind == "topic" else "feeds") or [])
 
 
-def _node_listing(kind, node, parent, **query):
+def _node_listing(kind, node, parent, info=None, **query):
     """Topic list of a PieFed topic or feed (all their communities' posts)."""
     page = page_arg()
     sticky, posts, has_next = bumped_topics(query, page, pin_sticky=False)
     pages = listing_pages(node)
     if page > 1 and not posts:  # past the end: show the last page instead
         return redirect(url_for(f"bb.{kind}", page=min(page - 1, pages or 1), **query))
+    alert = bool(info.get("activity_alert")) if info and logged_in() else node_alert(kind, node["id"])
     return render_template("forum.html", kind=kind, topic=_named(node, kind), parent=_named(parent, kind),
-                           alert=node_alert(kind, node["id"]),
+                           alert=alert, info=info,
                            subforums=forums.subforum_rows(node, kind, blocked_community_ids()),
                            sticky=sticky, posts=posts, page=page, pages=pages, has_next=has_next)
 
@@ -520,7 +529,8 @@ def thread(post_id):
     forum_counts = piefed.community_counts([cid]).get(cid) if cid else None
     pv["community"] = _renamed_community(dict(pv.get("community") or {},
                                               description=(forum_counts or {}).get("description")))
-    return render_template("thread.html", pv=pv, comments=comments, page=page, pages=pages,
+    topic_hidden = recent_blocks("posthide").get(post_id, False)  # PieFed doesn't say; only what they did here
+    return render_template("thread.html", topic_hidden=topic_hidden, comment_alerts=recent_blocks("cmtalert"), pv=pv, comments=comments, page=page, pages=pages,
                            offset=(page - 1) * COMMENTS_PER_PAGE, forum_counts=forum_counts, hidden=hidden,
                            has_next=len(comments) >= COMMENTS_PER_PAGE)
 
@@ -703,7 +713,39 @@ def topic_extras(form):
 
 EMPTY_TOPIC = {"title": "", "body": "", "url": "", "nsfw": False, "poll_text": "", "poll_mode": "single",
                "poll_days": 3, "ev_start": "", "ev_end": "", "ev_link": "", "ev_max": "", "tz": "",
-               "flair": [], "language_id": None}
+               "flair": [], "language_id": None, "sched_at": "", "sched_repeat": "None"}
+SCHEDULE_REPEATS = ("None", "Daily", "Weekly", "Monthly")
+
+
+def scheduled_for(local):
+    """A typed 'YYYY-MM-DDTHH:MM' for PieFed's scheduled posts, or None. PieFed reads it as a time in
+    the account's own timezone (set in PieFed's settings), whatever the "Z" at the end says."""
+    try:
+        when = datetime.fromisoformat(local)
+    except ValueError:
+        return None
+    return when.replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:00.000000Z")
+
+
+def fetch_link_title(form):
+    """Fill in an empty subject from the link's page title, via PieFed (which fetches the page)."""
+    if not form["url"] or render.safe_url(form["url"]) == "#":
+        flash("Enter a link first.")
+        return
+    try:
+        meta = piefed.get("/post/site_metadata", cache=False, url=form["url"]).get("metadata") or {}
+    except piefed.SessionExpired:
+        raise
+    except ApiError:
+        meta = {}
+    title = (meta.get("title") or "").strip() if isinstance(meta.get("title"), str) else ""
+    if not title:
+        flash("PieFed couldn't get a title from that page.")
+    elif form["title"]:
+        flash(f"The page's title is: {title[:300]}")
+    else:
+        form["title"] = title[:300]
+        flash("Subject filled in from the page's title.")
 
 
 def topic_form():
@@ -717,7 +759,9 @@ def topic_form():
             "ev_start": f.get("ev_start", "").strip(), "ev_end": f.get("ev_end", "").strip(),
             "ev_link": f.get("ev_link", "").strip(), "ev_max": f.get("ev_max", "").strip(), "tz": f.get("tz", "").strip(),
             "flair": [int(x) for x in f.getlist("flair") if x.isdecimal()][:10],
-            "language_id": lang if lang and lang > 0 else None}
+            "language_id": lang if lang and lang > 0 else None,
+            "sched_at": f.get("sched_at", "").strip()[:16],
+            "sched_repeat": f.get("sched_repeat") if f.get("sched_repeat") in SCHEDULE_REPEATS else "None"}
 
 
 def topic_choices(community_id, info=None):
@@ -785,17 +829,35 @@ def new_topic(name):
             return show()
         if request.form.get("preview"):
             return show(preview=True)
+        if request.form.get("fetch_title"):
+            fetch_link_title(form)
+            return show()
         poll, event, problem = topic_extras(form)
+        later = scheduled_for(form["sched_at"]) if form["sched_at"] else None
         if not form["title"]:
             flash("You must enter a subject.")
         elif problem:
             flash(problem)
+        elif form["sched_at"] and not later:
+            flash("That posting time isn't a valid date and time.")
         else:
+            payload = {"title": form["title"], "community_id": cv["community"]["id"],
+                       "body": form["body"] or None, "url": form["url"] or None,
+                       "nsfw": form["nsfw"], "poll": poll, "event": event, "language_id": form["language_id"]}
+            if later:
+                try:
+                    piefed.post("/post/scheduled", dict(payload, scheduled_for=later, repeat=form["sched_repeat"]))
+                except ApiError as e:
+                    # PieFed 1.8/1.9 fail with an internal error ("NoneType", which PieBB reports as "doesn't
+                    # exist") when the account has no timezone set: it reads the time in that timezone
+                    tz_problem = any(x in e.message for x in ("NoneType", "internal error", "doesn't exist"))
+                    flash("PieFed needs your timezone for scheduled topics: set it in your PieFed settings first."
+                          if tz_problem else e.message)
+                    return show()
+                flash("Topic scheduled. It's posted at the time you chose; until then it's listed here.")
+                return redirect(url_for("bb.scheduled"))
             try:
-                res = piefed.post("/post", {"title": form["title"], "community_id": cv["community"]["id"],
-                                            "body": form["body"] or None, "url": form["url"] or None,
-                                            "nsfw": form["nsfw"], "poll": poll, "event": event,
-                                            "language_id": form["language_id"]})
+                res = piefed.post("/post", payload)
                 new_id = ((res.get("post_view") or {}).get("post") or {}).get("id")
                 if not new_id:  # created, but PieFed answered in an unexpected shape
                     flash("Topic posted.")
@@ -886,10 +948,20 @@ POST_ACTIONS = {
                  "Topic is no longer sticky."),
     "remove": ("/post/remove", lambda i, r: {"post_id": i, "removed": True, "reason": r}, "Topic removed."),
     "restore": ("/post/remove", lambda i, r: {"post_id": i, "removed": False, "reason": r}, "Topic restored."),
+    "nsfw": ("/community/moderate/post/nsfw", lambda i, r: {"post_id": i, "nsfw_status": True}, "Topic marked NSFW."),
+    "sfw": ("/community/moderate/post/nsfw", lambda i, r: {"post_id": i, "nsfw_status": False},
+            "Topic no longer marked NSFW."),
 }
 COMMENT_ACTIONS = {
     "remove": ("/comment/remove", lambda i, r: {"comment_id": i, "removed": True, "reason": r}, "Post removed."),
     "restore": ("/comment/remove", lambda i, r: {"comment_id": i, "removed": False, "reason": r}, "Post restored."),
+    "lock": ("/comment/lock", lambda i, r: {"comment_id": i, "locked": True},
+             "Replies to this post are locked."),
+    "unlock": ("/comment/lock", lambda i, r: {"comment_id": i, "locked": False}, "Replies to this post are open again."),
+    "distinguish": ("/comment/distinguish", lambda i, r: {"comment_reply_id": i, "distinguished": True},
+                    "Marked as a moderator statement."),
+    "undistinguish": ("/comment/distinguish", lambda i, r: {"comment_reply_id": i, "distinguished": False},
+                      "No longer marked as a moderator statement."),
 }
 
 
@@ -971,7 +1043,10 @@ def profile(username):
         except ApiError:  # the profile still shows; only the Block button may be out of date
             known = False
         blocked = is_blocked("user", person_id, known)
-    return render_template("profile.html", pv=data.get("person_view") or {}, posts=posts, comments=comments,
+    pv = data.get("person_view") or {}
+    if person_id:
+        pv["activity_alert"] = is_blocked("useralert", person_id, pv.get("activity_alert"))
+    return render_template("profile.html", pv=pv, posts=posts, comments=comments,
                            is_blocked=blocked,
                            moderates=(data.get("moderates") or []), page=page, pages=pages,
                            has_next=len(posts) >= PROFILE_PER_PAGE or len(comments) >= PROFILE_PER_PAGE)

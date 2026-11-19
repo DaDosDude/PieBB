@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Message reports :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% macro resolve(kind, r) %}<form class="inline" method="post" action="{{ url_for('bb.message_report_resolve') }}">{{ m.csrf() }}
+  <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="report_id" value="{{ r.id }}">
+  {% if r.resolved %}<input type="hidden" name="resolved" value="0"><button class="btnlink">Reopen</button>
+  {% else %}<input type="hidden" name="resolved" value="1"><input type="submit" value="Resolve">{% endif %}</form>{% endmacro %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.modcp') }}">Moderator Control Panel</a> &raquo; Message reports</td>
+  <td class="right tabs gen"><a class="{{ 'on' if unresolved }}" href="{{ url_for('bb.message_reports') }}">Open</a>
+    <a class="{{ 'on' if not unresolved }}" href="{{ url_for('bb.message_reports', all=1) }}">All</a></td></tr></table>
+<p class="gensmall">Reported private messages and conversations. Only site admins see these.</p>
+<table class="forumline">
+  <tr><th colspan="3">Reported messages</th></tr>
+  {% for r in msg_reports %}
+  <tr><td class="row1 gensmall" width="22%" valign="top"><b>{{ r.reason or 'No reason' }}</b><br>{{ r.published|bbdate }}
+        <br>by <a href="{{ url_for('bb.profile', username=r.reporter|pref) }}">{{ r.reporter|pname }}</a>{% if r.resolved %}<br><span class="muted">resolved</span>{% endif %}</td>
+      <td class="row1 postbody" valign="top"><span class="gensmall">From <a href="{{ url_for('bb.profile', username=r.author|pref) }}">{{ r.author|pref }}</a>:</span>
+        <div class="quote">{{ r.text|md }}</div></td>
+      <td class="row2 center nowrap" valign="top">{{ resolve('message', r) }}<br>
+        {% if r.author.id %}<a class="gensmall" href="{{ url_for('bb.site_ban', person_id=r.author.id) }}">Ban from site</a>{% endif %}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">No {{ 'open ' if unresolved }}message reports.</td></tr>
+  {% endfor %}
+</table>
+<br>
+<table class="forumline">
+  <tr><th colspan="3">Reported conversations</th></tr>
+  {% for r in conv_reports %}
+  <tr><td class="row1 gensmall" width="22%" valign="top"><b>{{ r.reason or 'No reason' }}</b><br>{{ r.published|bbdate }}
+        <br>by <a href="{{ url_for('bb.profile', username=r.reporter|pref) }}">{{ r.reporter|pname }}</a>{% if r.resolved %}<br><span class="muted">resolved</span>{% endif %}</td>
+      <td class="row1 gen" valign="top"><span class="gensmall">Between {% for p in r.members %}<a href="{{ url_for('bb.profile', username=p|pref) }}">{{ p|pref }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>
+        {% for h in r.history %}<div class="quote"><span class="gensmall"><b>{{ h.creator|pname }}</b> &middot; {{ h.published|bbdate }}</span><br>{{ h.text|md }}</div>{% endfor %}</td>
+      <td class="row2 center nowrap" valign="top">{{ resolve('conversation', r) }}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">No {{ 'open ' if unresolved }}conversation reports.</td></tr>
+  {% endfor %}
+</table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endblock %}

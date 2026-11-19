@@ -3,6 +3,7 @@
 <table width="100%"><tr><td class="tabs gen">
   <a class="{{ 'on' if show == 'reports' }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='reports') }}">Reports</a>
   <a class="{{ 'on' if show == 'modlog' }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='modlog') }}">Moderation log</a>
+  {% if is_admin %}<a href="{{ url_for('bb.message_reports') }}">Message reports</a>{% endif %}
   {% if show == 'reports' %}&nbsp;|&nbsp;
     <a class="{{ 'on' if unresolved }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='reports') }}">Open</a>
     <a class="{{ 'on' if not unresolved }}" href="{{ url_for(('admin.moderation' if panel == 'admin' else 'bb.modcp'), show='reports', all=1) }}">All</a>

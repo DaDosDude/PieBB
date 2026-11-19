@@ -13,6 +13,7 @@
     {% if (person|pref) != (person|pname) %}{{ person|pref }}<br>{% endif %}
     Joined: {{ (person.published or '')[:10] }}
     {% if banned %}<br><span style="color:#C00">Banned</span>{% endif %}
+    {% if person.note %}<br><span class="usernote" title="Your note about them (only you see it)">Note: {{ person.note }}</span>{% endif %}
     {% if me and person.id and person.id != me.id %}<br><a href="{{ url_for('bb.conversation', person_id=person.id) }}">Send PM</a>{% endif %}
   </span>
 </td>
@@ -34,6 +35,9 @@
     <form class="inline" method="post" action="{{ url_for('bb.follow_topic', post_id=p.id) }}">{{ m.csrf() }}
       <input type="hidden" name="follow" value="{{ '0' if pv.activity_alert else '1' }}">
       <button class="btn" title="{{ 'Stop notifications about new replies' if pv.activity_alert else 'Get a notification when someone replies' }}">{{ 'Unfollow topic' if pv.activity_alert else 'Follow topic' }}</button></form>
+    <form class="inline" method="post" action="{{ url_for('bb.hide_topic', post_id=p.id) }}">{{ m.csrf() }}
+      <input type="hidden" name="hidden" value="{{ '0' if topic_hidden else '1' }}">
+      <button class="btn" title="{{ 'Show this topic in topic lists again' if topic_hidden else 'Leave this topic out of your topic lists' }}">{{ 'Unhide topic' if topic_hidden else 'Hide topic' }}</button></form>
     {% endif %}
   </td>
   <td class="nav right"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
@@ -62,7 +66,10 @@
         {% if p.url and p.url|url != '#' %}
           {% if p.url is image %}<a href="{{ p.url|url }}" rel="nofollow noopener" target="_blank"><img src="{{ p.url|img }}" alt="{{ p.alt_text or '' }}" style="max-width:100%"></a>
           {% else %}<div class="linkbox">{% if p.thumbnail_url %}<img class="thumb" src="{{ p.thumbnail_url|img }}" alt="" loading="lazy"><br>{% endif %}
-            Link: <a href="{{ p.url|url }}" rel="nofollow noopener ugc" target="_blank">{{ p.url }}</a></div>{% endif %}
+            Link: <a href="{{ p.url|url }}" rel="nofollow noopener ugc" target="_blank">{{ p.url }}</a>
+            {% if logged_in and p.url|domain %}<form class="inline" method="post" action="{{ url_for('bb.block_domain') }}">{{ m.csrf() }}
+              <input type="hidden" name="domain" value="{{ p.url|domain }}"><input type="hidden" name="block" value="1">
+              <button class="btnlink gensmall" title="Hide all link topics to {{ p.url|domain }} from your topic lists">Block {{ p.url|domain }}</button></form>{% endif %}</div>{% endif %}
         {% endif %}
         {% if p.deleted %}<i class="muted">[deleted by its author]</i>{% else %}{{ p.body|md }}{{ m.post_extras(p) }}{% endif %}
       </div>
@@ -90,7 +97,8 @@
       <table width="100%"><tr>
         <td class="postdetails"><a href="#c{{ cm.id }}">#{{ offset + loop.index + 1 }}</a>
           &middot; {{ cm.published|bbdate }}{{ edited(cm.updated) }}</td>
-        <td class="right nowrap">{% if not p.locked %}
+        <td class="right nowrap">{% if cm.locked and not p.locked %}<span class="gensmall muted" title="A moderator locked replies to this post">Replies locked</span>{% endif %}
+          {% if not p.locked and not cm.locked %}
           {{ m.button('icon_quote', 'Quote', url_for('bb.reply', post_id=p.id, parent=cm.id, quote=1), False) }}
           <a class="btn" href="{{ url_for('bb.reply', post_id=p.id, parent=cm.id) }}">Reply</a>{% endif %}</td>
       </tr></table>
@@ -117,7 +125,16 @@
   <tr>
     <td class="{{ loop.cycle('row2', 'row1') }} gensmall">{{ m.votes('comment', cm.id, c.counts, c.my_vote) }}
       {% if cm.distinguished %}&nbsp;<b>[mod]</b>{% endif %}
+      {% if cm.answer %}&nbsp;<b class="answer" title="The topic's author chose this as the answer">&#10003; Answer</b>{% endif %}
+      {% if pv.community.question_answer and me and not cm.deleted and (pv.creator.id == me.id or can_mod(pv.community.id)) %}&nbsp;|&nbsp;
+      <form class="inline" method="post" action="{{ url_for('bb.mark_answer', comment_id=cm.id) }}">{{ m.csrf() }}
+        <input type="hidden" name="answer" value="{{ '0' if cm.answer else '1' }}">
+        <button class="btnlink" title="{{ 'This is no longer the answer' if cm.answer else 'Mark this post as the answer to the question' }}">{{ 'Unmark answer' if cm.answer else 'Mark as answer' }}</button></form>{% endif %}
       {{ m.save_btn('comment', cm.id, c.saved) }}
+      {% if logged_in %}{% set on = comment_alerts.get(cm.id, c.activity_alert) %}&nbsp;|&nbsp;
+      <form class="inline" method="post" action="{{ url_for('bb.comment_alert', comment_id=cm.id) }}">{{ m.csrf() }}
+        <input type="hidden" name="alert" value="{{ '0' if on else '1' }}">
+        <button class="btnlink{{ ' on' if on }}" title="{{ 'Stop notifications about replies to this post' if on else 'Get a notification when someone replies to this post' }}">{{ 'Alerting replies' if on else 'Alert replies' }}</button></form>{% endif %}
       {{ m.useractions('comment', cm.id, c.creator, cm.deleted) }}
       {% if can_mod(pv.community.id) %}&nbsp;|&nbsp; {{ m.modbar('comment', cm.id, cm, pv.community.id, c.creator.id) }}{% endif %}</td>
   </tr>

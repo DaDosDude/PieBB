@@ -197,6 +197,35 @@ def forget_session():
         _badge_cache.pop(h, None)
 
 
+forget_user_cache = forget_session  # after a change PieFed's own answers should show at once
+
+
+# Features PieBB offers only when PieFed is new enough to have their API (older ones don't get the links)
+FEATURES = {"blocklists": (1, 9)}
+
+
+def version():
+    """PieFed's version as a tuple of numbers, from /site (cached); () if it isn't known."""
+    try:
+        v = get("/site", cache="user").get("version") or ""
+    except (SessionExpired, PrivateInstance):
+        raise
+    except ApiError:
+        return ()
+    nums = []
+    for part in v.split("."):
+        digits = "".join(ch for ch in part if ch.isdigit()) if part else ""
+        if not digits:
+            break
+        nums.append(int(digits))
+    return tuple(nums)
+
+
+def has(feature):
+    v = version()
+    return bool(v) and v >= FEATURES.get(feature, (0,))
+
+
 def get(path, cache=True, timeout=None, **params):
     params = _clean(params)
     url = current_app.config["PIEFED_API_URL"] + path
@@ -221,14 +250,15 @@ def get(path, cache=True, timeout=None, **params):
     return data
 
 
-def post(path, payload, method="POST", keep=()):
-    """keep: keys sent even when empty/None (e.g. to clear a field when editing)."""
+def post(path, payload, method="POST", keep=(), timeout=None):
+    """keep: keys sent even when empty/None (e.g. to clear a field when editing). timeout: for calls
+    where PieFed looks things up on other sites first (feeds, blocklists), longer than the default."""
     url = current_app.config["PIEFED_API_URL"] + path
     body = _clean(payload)
     body.update({k: payload[k] for k in keep if k in payload})
     try:
         r = requests.request(method, url, json=body, headers=_headers(),
-                             timeout=current_app.config["PIEFED_TIMEOUT"])
+                             timeout=max(timeout or 0, current_app.config["PIEFED_TIMEOUT"]))
     except requests.RequestException as e:
         raise ApiError(502, f"Could not reach PieFed: {e.__class__.__name__}")
     return schema.normalize(path, _handle(r))
@@ -350,6 +380,43 @@ def feed_tree():
         raise
     except ApiError:
         return []
+
+
+FEED_FIELDS = ("subscribed", "owner", "activity_alert", "public", "local", "actor_id", "ap_domain", "user_id",
+               "nsfw", "parent_feed_id", "show_posts_from_children", "icon", "communities_count")
+
+
+def feed_info(feed_id):
+    """One feed as PieFed shows it to this visitor: the tree's node shape plus FEED_FIELDS and
+    "slug" (its name in addresses). None if PieFed doesn't know it or won't show it to them
+    (a private feed of someone else). Also finds feeds not in the cached public list yet: just
+    fetched from another site, or private ones of the visitor's own."""
+    try:
+        data = get("/feed", cache="user", id=feed_id)
+    except (SessionExpired, PrivateInstance):
+        raise
+    except ApiError:
+        return None
+    if not isinstance(data, dict) or schema.i(data.get("id")) != feed_id:
+        return None
+    out = {}
+    _flatten([data], None, out)
+    node = out.get(feed_id)
+    if node:
+        node.update({k: data.get(k) for k in FEED_FIELDS})
+        node["slug"] = schema.s(data.get("name"))
+        node["description_md"] = schema.s(data.get("description"))
+    return node
+
+
+def refresh_feed_tree():
+    """Fetch the feed list now (after making, changing or deleting a feed) instead of waiting."""
+    try:
+        data = _anon_getter(current_app.config["PIEFED_TIMEOUT"])("/feed/list", {})
+    except (requests.RequestException, ValueError, ApiError):
+        return
+    if data is not None:
+        sharedcache.put("tree:/feed/list", _build_tree(data, "feeds"))
 
 
 def find_topic(tree, topic_id, parent=None):

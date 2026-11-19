@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Scheduled topics :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Scheduled topics</td></tr></table>
+<table class="forumline">
+  <tr><th width="100%">Topic</th><th>Posted at</th><th></th></tr>
+  {% for p in posts %}
+  <tr><td class="row1 gen"><b>{{ p.title }}</b>
+        <br><span class="gensmall">in <a href="{{ url_for('bb.community', name=p.community|cref) }}">{{ p.community.title or p.community.name }}</a>
+        {% if p.url %}&middot; {{ p.url|domain }}{% endif %}</span>
+        {% if p.body %}<br><span class="gensmall muted">{{ p.body|plain|truncate(160) }}</span>{% endif %}</td>
+      <td class="row2 nowrap gen"><form method="post">{{ m.csrf() }}<input type="hidden" name="post_id" value="{{ p.id }}">
+        <input type="datetime-local" name="sched_at" value="{{ p.when[:16] }}" aria-label="Posting time">
+        <select name="sched_repeat" aria-label="Repeat">{% for r in ['None', 'Daily', 'Weekly', 'Monthly'] %}<option value="{{ r }}"{% if p.repeat|lower == r|lower %} selected{% endif %}>{{ 'Once' if r == 'None' else 'Repeat ' ~ r|lower }}</option>{% endfor %}</select>
+        <button class="btn">Save</button></form></td>
+      <td class="row2 center nowrap"><form method="post" onsubmit="return confirm('Delete this scheduled topic?')">{{ m.csrf() }}
+        <input type="hidden" name="post_id" value="{{ p.id }}"><input type="hidden" name="action" value="delete"><button class="btn">Delete</button></form></td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">You have no scheduled topics. Use "Post later" when starting a topic.</td></tr>
+  {% endfor %}
+  <tr><td class="catBottom gensmall" colspan="3">Times are in the timezone of your PieFed account.</td></tr>
+</table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endblock %}

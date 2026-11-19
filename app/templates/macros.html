@@ -131,11 +131,16 @@
     {% if kind == 'post' %}
     <button class="btnlink" name="action" value="{{ 'unlock' if flags.locked else 'lock' }}">{{ 'Unlock' if flags.locked else 'Lock' }}</button> &middot;
     <button class="btnlink" name="action" value="{{ 'unsticky' if flags.sticky else 'sticky' }}">{{ 'Unsticky' if flags.sticky else 'Sticky' }}</button> &middot;
+    <button class="btnlink" name="action" value="{{ 'sfw' if flags.nsfw else 'nsfw' }}">{{ 'Not NSFW' if flags.nsfw else 'Mark NSFW' }}</button> &middot;
+    {% else %}
+    <button class="btnlink" name="action" value="{{ 'unlock' if flags.locked else 'lock' }}" title="{{ 'Allow replies to this post again' if flags.locked else 'No more replies to this post' }}">{{ 'Unlock replies' if flags.locked else 'Lock replies' }}</button> &middot;
+    {% if me and user_id == me.id %}<button class="btnlink" name="action" value="{{ 'undistinguish' if flags.distinguished else 'distinguish' }}" title="Show your post as an official moderator statement">{{ 'Not a mod statement' if flags.distinguished else 'Mod statement' }}</button> &middot;{% endif %}
     {% endif %}
     <input type="text" name="reason" placeholder="reason" class="reason">
     <button class="btnlink" name="action" value="{{ 'restore' if flags.removed else 'remove' }}">{{ 'Restore' if flags.removed else 'Remove' }}</button>
   </form> &middot;
-  <a href="{{ url_for('bb.ban', community_id=community_id, user_id=user_id) }}">Ban user</a>
+  <a href="{{ url_for('bb.ban', community_id=community_id, user_id=user_id) }}">Ban user</a> &middot;
+  <a href="{{ url_for('bb.vote_list', kind=kind, obj_id=obj_id) }}">Votes</a>
 </details>
 {% endmacro %}
 

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ 'Edit feed' if info else 'New feed' }} :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.feeds') }}">Feeds</a>
+  {% if info %}&raquo; <a href="{{ url_for('bb.feed', feed_id=info.id) }}">{{ info.name }}</a> &raquo; Edit{% else %}&raquo; New feed{% endif %}</td></tr></table>
+
+<form method="post" enctype="multipart/form-data">{{ m.csrf() }}
+<table class="forumline formtable">
+  <tr><th colspan="2">{{ 'Edit feed' if info else 'New feed' }}</th></tr>
+  <tr><td class="row1 gen" width="30%"><b>Title</b></td>
+      <td class="row2"><input type="text" name="title" maxlength="255" value="{{ form.title or '' }}" required></td></tr>
+  {% if not info %}
+  <tr><td class="row1 gen"><b>Address name</b><br><span class="gensmall">Lowercase letters, digits and _; can't be changed later</span></td>
+      <td class="row2 gen">~<input type="text" name="name" maxlength="50" pattern="[a-z0-9_]+" value="{{ form.name or '' }}" required style="width:40%"></td></tr>
+  {% endif %}
+  <tr><td class="row1 gen" valign="top"><b>Forums</b><br><span class="gensmall">One per line: <code>name@site</code>, e.g. <code>retrogaming@lemmy.world</code>. Forums from other sites are fetched when needed.</span></td>
+      <td class="row2"><textarea name="communities" rows="8">{{ form.communities or '' }}</textarea></td></tr>
+  <tr><td class="row1 gen" valign="top"><b>Description</b><br><span class="gensmall">Markdown is supported.</span></td>
+      <td class="row2">{{ m.md_toolbar() }}<textarea name="description" rows="5" maxlength="10000">{{ form.description or '' }}</textarea></td></tr>
+  <tr><td class="row1 gen" valign="top"><b>Icon</b><br><span class="gensmall">PNG, JPEG, GIF or WebP, max 10 MB</span></td>
+      <td class="row2 gen">{% if info and info.icon %}<span class="forumicon" style="background-image:url('{{ info.icon|cssurl }}');vertical-align:middle"></span> &nbsp;{% endif %}
+        <input type="file" name="icon" accept="image/png,image/jpeg,image/gif,image/webp"></td></tr>
+  {% if mine %}
+  <tr><td class="row1 gen"><b>Inside feed</b><br><span class="gensmall">Optional: show it as a sub-feed of one of yours</span></td>
+      <td class="row2"><select name="parent_feed_id"><option value="">(none)</option>
+        {% for f in mine %}<option value="{{ f.id }}"{% if form.parent_feed_id|string == f.id|string %} selected{% endif %}>{{ f.title or f.name }}</option>{% endfor %}</select></td></tr>
+  {% endif %}
+  <tr><td class="row1 gen"><b>Options</b></td>
+      <td class="row2 gen"><label><input type="checkbox" name="public" value="1"{% if form.public %} checked{% endif %}> Public (anyone can see and follow it)</label><br>
+        <label><input type="checkbox" name="nsfw" value="1"{% if form.nsfw %} checked{% endif %}> NSFW</label><br>
+        <label><input type="checkbox" name="show_child_posts" value="1"{% if form.show_child_posts %} checked{% endif %}> Also show the topics of its sub-feeds</label></td></tr>
+  <tr><td class="catBottom center" colspan="2"><input type="submit" value="{{ 'Save' if info else 'Make feed' }}"></td></tr>
+</table>
+</form>
+{% if info %}
+<br>
+<form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="delete">
+<table class="forumline">
+  <tr><th>Delete feed</th></tr>
+  <tr><td class="row1 gen center"><label><input type="checkbox" name="confirm" value="1"> Yes, delete this feed</label> &nbsp; <button class="btn">Delete feed</button></td></tr>
+</table>
+</form>
+{% endif %}
+{% endblock %}

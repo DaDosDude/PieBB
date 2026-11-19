@@ -49,7 +49,7 @@ def person(p):
     return {"id": i(p.get("id")), "user_name": s(p.get("user_name")), "title": s(p.get("title")),
             "local": b(p.get("local")), "bot": b(p.get("bot")), "banned": b(p.get("banned")),
             "deleted": b(p.get("deleted")), "published": s(p.get("published")), "actor_id": s(p.get("actor_id")),
-            "avatar": s(p.get("avatar")), "about": s(p.get("about"))}
+            "avatar": s(p.get("avatar")), "about": s(p.get("about")), "note": s(p.get("note"))}
 
 
 def community(c):
@@ -58,7 +58,8 @@ def community(c):
             "nsfw": b(c.get("nsfw")), "deleted": b(c.get("deleted")), "removed": b(c.get("removed")),
             "hidden": b(c.get("hidden")), "restricted_to_mods": b(c.get("restricted_to_mods")),
             "published": s(c.get("published")), "actor_id": s(c.get("actor_id")),
-            "ap_domain": s(c.get("ap_domain")), "description": s(c.get("description")), "icon": s(c.get("icon"))}
+            "ap_domain": s(c.get("ap_domain")), "description": s(c.get("description")), "icon": s(c.get("icon")),
+            "question_answer": b(c.get("question_answer"))}
 
 
 def post(p):
@@ -122,7 +123,8 @@ def comment(c):
     return {"id": i(c.get("id")), "post_id": i(c.get("post_id")), "body": s(c.get("body")) or "",
             "removed": b(c.get("removed")), "published": s(c.get("published")), "updated": s(c.get("updated")),
             "deleted": b(c.get("deleted")), "ap_id": s(c.get("ap_id")), "local": b(c.get("local")),
-            "path": s(c.get("path")) or "", "distinguished": b(c.get("distinguished"))}
+            "path": s(c.get("path")) or "", "distinguished": b(c.get("distinguished")),
+            "answer": b(c.get("answer")), "locked": b(c.get("locked"))}
 
 
 def _counts(c, *fields):
@@ -157,12 +159,24 @@ def post_view(v):
             "flair_list": flair_list(v.get("flair_list"))} | _flags(v)
 
 
+def _inbox(r):
+    """/user/mentions and /user/replies: comments, each with whether it's still unread."""
+    r = d(r)
+    out = []
+    for x in lst(r.get("replies")):
+        cv = comment_view(x)
+        if cv["comment"]["id"] is not None:
+            cv["unread"] = not b(d(d(x).get("comment_reply")).get("read"))
+            out.append(cv)
+    return {"replies": out, "next_page": s(r.get("next_page"))}
+
+
 def comment_view(v):
     v = d(v)
     return {"comment": comment(v.get("comment")), "creator": person(v.get("creator")), "post": post(v.get("post")),
             "community": community(v.get("community")),
             "counts": _counts(v.get("counts"), "score", "upvotes", "downvotes", "child_count"),
-            "my_vote": i(v.get("my_vote"), 0)} | _flags(v)
+            "my_vote": i(v.get("my_vote"), 0), "activity_alert": b(v.get("activity_alert"))} | _flags(v)
 
 
 def community_view(v):
@@ -179,6 +193,7 @@ def community_view(v):
 def person_view(v):
     v = d(v)
     return {"person": person(v.get("person")), "is_admin": b(v.get("is_admin")),
+            "activity_alert": b(v.get("activity_alert")),
             "counts": _counts(v.get("counts"), "post_count", "comment_count")}
 
 
@@ -207,7 +222,8 @@ def site(r):
                     "user_count": i(st.get("user_count")), "enable_downvotes": dv if isinstance(dv, bool) else None,
                     "languages": [{"id": i(d(x).get("id")), "name": s(d(x).get("name")) or ""}
                                   for x in lst(st.get("all_languages")) if i(d(x).get("id")) is not None]},
-           "admins": _views(r.get("admins"), person_view, "person"), "my_user": None}
+           "admins": _views(r.get("admins"), person_view, "person"), "my_user": None,
+           "version": s(r.get("version"))}
     if my:
         out["my_user"] = {"local_user_view": {"person": person(d(my.get("local_user_view")).get("person"))},
                           "moderates": moderator_views(my.get("moderates"))}
@@ -402,6 +418,8 @@ def _registrations(items):
 NORMALIZERS = {
     "/site": site,
     "/user/me": user_me,
+    "/user/mentions": lambda r: _inbox(r),
+    "/user/replies": lambda r: _inbox(r),
     "/user/activity_alert/list": lambda r: {key: [x for x in (i(d(v).get("id")) for v in lst(d(r).get(key))) if x is not None]
                                             for key in ("topics", "feeds")},
     "/post": _resp(post_view=post_view, community_view=community_view, moderators=moderator_views),

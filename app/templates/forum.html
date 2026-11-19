@@ -10,6 +10,7 @@
 {% block pagehead %}
 {% if kind != 'community' %}
   <a class="maintitle" style="font-size:20px" href="">{{ topic.name }}</a>
+  {% if kind == 'feed' and info and info.slug %}<span class="gensmall muted">~{{ info.slug }}{% if not info.local and info.ap_domain %}@{{ info.ap_domain }}{% endif %}{% if not info.public %} (private){% endif %}</span>{% endif %}
   {% if topic.description %}<br><span class="genmed">{{ topic.description }}</span>{% endif %}
 {% else %}
   {% set c = cv.community %}
@@ -21,6 +22,12 @@
 
 <table width="100%" style="margin-top:6px"><tr>
   <td>
+    {% if kind == 'feed' and info and logged_in and not info.owner %}
+      <form class="inline" method="post" action="{{ url_for('bb.follow_feed', feed_id=topic.id) }}">{{ m.csrf() }}
+        <input type="hidden" name="follow" value="{{ '0' if info.subscribed else '1' }}">
+        <button class="btn" title="{{ 'Leave this feed' if info.subscribed else 'Join this feed; PieFed also joins its forums if feed auto-follow is on in your PieFed settings' }}">{{ 'Unfollow feed' if info.subscribed else 'Follow feed' }}</button></form>
+    {% endif %}
+    {% if kind == 'feed' and info and info.owner %}{{ m.button('feed_edit', 'Edit feed', url_for('bb.edit_feed', feed_id=topic.id), False) }}{% endif %}
     {% if kind != 'community' and alert is not none %}{{ m.alert_btn(kind, topic.id, alert) }}{% endif %}
     {% if kind == 'community' %}
       {% if not cv.community.restricted_to_mods %}{{ m.button('post_new', 'New Topic', url_for('bb.new_topic', name=cv.community|cref)) }}{% endif %}

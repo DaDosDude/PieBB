@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Site ban :: {{ person|pname }} :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.profile', username=person|pref) }}">{{ person|pname }}</a> &raquo; Site ban</td></tr></table>
+<form method="post">{{ m.csrf() }}
+<table class="forumline formtable">
+  <tr><th colspan="2">{{ 'Banned from this site' if person.banned else 'Ban ' ~ (person|pref) ~ ' from this site' }}</th></tr>
+  {% if person.banned %}
+  <tr><td class="row1 gen center" colspan="2">{{ person|pref }} is banned from the whole site.
+    <input type="hidden" name="action" value="unban"> <input type="submit" value="Lift the ban"></td></tr>
+  {% else %}
+  <tr><td class="row1 gen" width="30%"><b>Reason</b><br><span class="gensmall">at most 50 characters</span></td>
+      <td class="row2"><input type="text" name="reason" maxlength="50"></td></tr>
+  <tr><td class="row1 gen"><b>Also</b></td>
+      <td class="row2 gen"><label><input type="checkbox" name="purge" value="1"> Delete everything they posted</label><br>
+        <label><input type="checkbox" name="ban_ip" value="1"> Ban their IP address</label></td></tr>
+  <tr><td class="catBottom center" colspan="2"><input type="submit" value="Ban from site"></td></tr>
+  {% endif %}
+</table>
+</form>
+<p class="gensmall">A site ban covers every forum on {{ forum_title }}. To ban someone from one forum only, use "Ban user" in that forum's moderation menu.</p>
+{% endblock %}

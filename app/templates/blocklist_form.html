@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ 'Edit blocklist' if b else 'New blocklist' }} :: {% endblock %}
+{% block sidebar %}{% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.blocklists') }}">Blocklists</a>
+  {% if b %}&raquo; <a href="{{ url_for('bb.blocklist', blocklist_id=b.id) }}">{{ b.title }}</a> &raquo; Edit{% else %}&raquo; New blocklist{% endif %}</td></tr></table>
+<form method="post">{{ m.csrf() }}
+<table class="forumline formtable">
+  <tr><th colspan="2">{{ 'Edit blocklist' if b else 'New blocklist' }}</th></tr>
+  <tr><td class="row1 gen" width="30%"><b>Title</b></td>
+      <td class="row2"><input type="text" name="title" maxlength="255" value="{{ form.title or '' }}" required></td></tr>
+  {% if not b %}
+  <tr><td class="row1 gen"><b>Address name</b><br><span class="gensmall">Lowercase letters, digits and _; can't be changed later</span></td>
+      <td class="row2 gen">%<input type="text" name="name" maxlength="50" pattern="[a-z0-9_]+" value="{{ form.name or '' }}" required style="width:40%"></td></tr>
+  {% endif %}
+  <tr><td class="row1 gen" valign="top"><b>Accounts</b><br><span class="gensmall">One per line: <code>name</code> for users here, <code>name@site</code> for others. Unknown accounts are looked up.</span></td>
+      <td class="row2"><textarea name="members" rows="10">{{ form.members or '' }}</textarea></td></tr>
+  <tr><td class="row1 gen" valign="top"><b>Description</b><br><span class="gensmall">Why these accounts are on it. Markdown is supported.</span></td>
+      <td class="row2">{{ m.md_toolbar() }}<textarea name="description" rows="5" maxlength="10000">{{ form.description or '' }}</textarea></td></tr>
+  <tr><td class="catBottom center" colspan="2"><input type="submit" value="{{ 'Save' if b else 'Make blocklist' }}"></td></tr>
+</table>
+</form>
+{% if b %}
+<br>
+<form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="delete">
+<table class="forumline"><tr><th>Delete blocklist</th></tr>
+  <tr><td class="row1 gen center"><label><input type="checkbox" name="confirm" value="1"> Yes, delete this blocklist</label> &nbsp; <button class="btn">Delete blocklist</button></td></tr></table>
+</form>
+{% endif %}
+{% endblock %}

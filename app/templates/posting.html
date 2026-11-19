@@ -30,7 +30,7 @@
       <td class="row2"><input type="text" name="title" maxlength="300" value="{{ form.title }}" required></td></tr>
   {% if not kind %}
   <tr><td class="row1"><b class="gen">Link</b><br><span class="gensmall">optional URL, or a link to an image</span></td>
-      <td class="row2"><input type="url" name="url" value="{{ form.url }}"></td></tr>
+      <td class="row2"><input type="url" name="url" value="{{ form.url }}"{% if mode == 'topic' %} style="width:70%"> <input type="submit" name="fetch_title" value="Get title" formnovalidate title="Fill in the subject from the linked page"{% endif %}></td></tr>
   {% endif %}
   {% else %}
   <tr><td class="row1" width="22%"><b class="gen">Subject</b></td>
@@ -75,6 +75,12 @@
   <tr><td class="row1"><b class="gen">Language</b></td>
       <td class="row2 gen"><select name="language_id"><option value="">{{ site.name or 'PieFed' }} default</option>
         {% for l in languages %}<option value="{{ l.id }}"{% if l.id == form.language_id %} selected{% endif %}>{{ l.name }}</option>{% endfor %}</select></td></tr>
+  {% endif %}
+  {% if mode == 'topic' %}
+  <tr><td class="row1" valign="top"><b class="gen">Post later</b><br><span class="gensmall">optional</span></td>
+      <td class="row2 gen"><input type="datetime-local" name="sched_at" value="{{ form.sched_at }}">
+        <select name="sched_repeat" aria-label="Repeat">{% for r in ['None', 'Daily', 'Weekly', 'Monthly'] %}<option value="{{ r }}"{% if form.sched_repeat == r %} selected{% endif %}>{{ 'Once' if r == 'None' else 'Repeat ' ~ r|lower }}</option>{% endfor %}</select>
+        <br><span class="gensmall">In the timezone of your PieFed account. Scheduled topics are listed under <a href="{{ url_for('bb.scheduled') }}">Scheduled topics</a>.</span></td></tr>
   {% endif %}
   {% if topic_like %}
   <tr><td class="row1"><b class="gen">Options</b></td>

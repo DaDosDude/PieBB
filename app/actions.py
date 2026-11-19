@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from flask import abort, current_app, flash, redirect, render_template, request, url_for
+from flask import abort, current_app, flash, redirect, render_template, request, session, url_for
 
 from . import piefed
 from .piefed import ApiError
@@ -227,10 +227,16 @@ def poll_vote(post_id):
 def notifications():
     if (r := require_login()):
         return r
-    show = "All" if request.args.get("show") == "all" else "Unread"
+    show = {"all": "All", "mentions": "Mentions", "replies": "Replies"}.get(request.args.get("show"), "Unread")
     page = page_arg()
+    if show in ("Mentions", "Replies"):
+        # PieFed's mention/reply lists: comments that mention you, and replies to topics and posts you follow
+        inbox = piefed.get(f"/user/{show.lower()}", cache=False, unread_only="false", sort="New", page=page, limit=25)
+        unread = piefed.get("/user/notifications", cache=False, status="Unread", page=1, limit=1).get("unread")
+        return render_template("notifications.html", data={"items": [], "unread": unread}, inbox=inbox["replies"],
+                               show=show, page=page, has_next=bool(inbox.get("next_page")))
     data = piefed.get("/user/notifications", cache=False, status=show, page=page, limit=25)
-    return render_template("notifications.html", data=data, show=show, page=page,
+    return render_template("notifications.html", data=data, show=show, page=page, inbox=None,
                            has_next=bool(data.get("next_page")))
 
 
@@ -320,7 +326,9 @@ def conversation(person_id):
             pass
     if unread_pms:
         piefed.forget_badge()
+    conversation_id = next((m["conversation_id"] for m in pms if m.get("conversation_id")), None)
     return render_template("conversation.html", other=other, pms=pms, draft=request.form.get("content", ""),
+                           conversation_id=conversation_id, reasons=REPORT_REASONS,
                            page=page, has_next=len(pms) >= 50)  # PieFed's response has no next_page here
 
 
@@ -515,7 +523,8 @@ def blocked():
                                "community_view", "community")
     recent = recent_blocks("instance")  # PieFed's list lags; a site is only unblocked here
     sites = [x for x in my.get("instance_blocks") or [] if recent.get(x["id"], True)]
-    return render_template("blocked.html", people=people, communities=communities, sites=sites)
+    return render_template("blocked.html", people=people, communities=communities, sites=sites,
+                           domains=[x for x in (session.get("domains") or []) if isinstance(x, str)])
 
 
 def _with_recent(items, kind, path, param, view_key, obj_key):
@@ -561,8 +570,10 @@ def _mod_community(name):
     c = cv.get("community") or {}
     if not c.get("id"):
         abort(404)
-    _, is_admin, mods = _me()
-    if not (is_admin or c["id"] in mods):
+    me, is_admin, mods = _me()
+    modlist = info.get("moderators") or []
+    # the forum's own moderator list is fresh; the site's list of what you moderate can lag (new forums)
+    if not (is_admin or c["id"] in mods or any((x.get("moderator") or {}).get("id") == me.get("id") for x in modlist)):
         abort(403, "Only this forum's moderators can change its settings.")
     if not c.get("local"):
         abort(400, "This forum lives on another instance; its settings can only be changed there.")
@@ -633,6 +644,13 @@ def forum_settings(name):
                     abort(400)
                 piefed.post("/community/flair/delete", {"flair_id": flair_id})
                 flash("Flair removed.")
+            elif action == "delete_forum":
+                if request.form.get("confirm") != "1":
+                    flash("Tick the box to confirm deleting the forum.")
+                else:
+                    piefed.post("/community/delete", {"community_id": cid, "deleted": True})
+                    flash("Forum deleted. A site admin can still restore it for a while.")
+                    return redirect(url_for("bb.index"))
             else:
                 abort(400)
         except piefed.SessionExpired:

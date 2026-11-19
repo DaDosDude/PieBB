@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Votes :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ target }}">{{ title if kind == 'post' else 'Post' }}</a> &raquo; Votes</td></tr></table>
+<table class="forumline">
+  <tr><th width="100%">Who voted</th><th>Vote</th></tr>
+  {% for v in votes %}
+  <tr><td class="row1 gen"><a href="{{ url_for('bb.profile', username=v.creator|pref) }}">{{ v.creator|pname }}</a>
+        <span class="gensmall muted">{{ v.creator|pref }}</span>{% if v.banned %} <span class="gensmall" style="color:#C00">banned here</span>{% endif %}</td>
+      <td class="row2 center gen nowrap">{% if v.score > 0 %}<span class="vote-up">&#9650; up</span>{% elif v.score < 0 %}<span class="vote-down">&#9660; down</span>{% else %}&ndash;{% endif %}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">No votes yet.</td></tr>
+  {% endfor %}
+</table>
+<table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
+{% endblock %}

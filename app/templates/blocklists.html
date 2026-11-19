@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Blocklists :: {% endblock %}
+{% macro rows(list, empty) %}
+  {% for b in list %}
+  <tr><td class="row1 gen" width="100%"><a class="forumlink" href="{{ url_for('bb.blocklist', blocklist_id=b.id) }}">{{ b.title }}</a>
+        <span class="gensmall muted">%{{ b.name }}@{{ b.ap_domain }}</span>
+        {% if b.description %}<br><span class="gensmall">{{ b.description|plain|truncate(200) }}</span>{% endif %}</td>
+      <td class="row2 center gensmall nowrap">{{ b.count }} accounts<br>{{ b.followers }} followers</td>
+      <td class="row2 center nowrap">{% if b.owner %}{{ m.button('bl_edit', 'Edit', url_for('bb.edit_blocklist', blocklist_id=b.id), False) }}{% elif logged_in %}{{ follow_btn(b) }}{% endif %}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">{{ empty }}</td></tr>
+  {% endfor %}
+{% endmacro %}
+{% macro follow_btn(b) %}<form class="inline" method="post" action="{{ url_for('bb.follow_blocklist', blocklist_id=b.id) }}">{{ m.csrf() }}
+  <input type="hidden" name="follow" value="{{ '0' if b.subscribed else '1' }}"><button class="btn">{{ 'Unfollow' if b.subscribed else 'Follow' }}</button></form>{% endmacro %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  {% if logged_in %}&raquo; <a href="{{ url_for('bb.blocked') }}">Blocked</a>{% endif %} &raquo; Blocklists</td>
+  <td class="right">{% if logged_in %}{{ m.button('bl_new', 'New blocklist', url_for('bb.edit_blocklist')) }}{% endif %}</td></tr></table>
+<p class="gensmall">A blocklist is a shared list of accounts. Following one blocks everyone on it for you, and keeps up as the list changes.</p>
+<form method="get">
+<table class="forumline formtable">
+  <tr><th>Open a blocklist</th></tr>
+  <tr><td class="row1 gen"><input type="text" name="name" placeholder="name@site, e.g. spammers@piefed.social" aria-label="Blocklist name" style="width:60%"> <input type="submit" value="Open"></td></tr>
+</table>
+</form>
+<br>
+{% if logged_in %}
+<table class="forumline"><tr><th colspan="3">Your blocklists</th></tr>{{ rows(mine, "You haven't made any blocklists.") }}</table><br>
+<table class="forumline"><tr><th colspan="3">Blocklists you follow</th></tr>{{ rows(followed, "You don't follow any blocklists.") }}</table><br>
+{% endif %}
+<table class="forumline"><tr><th colspan="3">All blocklists</th></tr>{{ rows(all_lists, "There are no blocklists yet.") }}</table>
+{% endblock %}

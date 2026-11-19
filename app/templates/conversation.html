@@ -2,9 +2,19 @@
 {% import "macros.html" as m with context %}
 {% block title %}Messages with {{ other|pname }} :: {% endblock %}
 {% block sidebar %}{% endblock %}
+{% macro reason_select() %}<select name="reason" aria-label="Reason">{% for r in reasons %}<option>{{ r }}</option>{% endfor %}</select>{% endmacro %}
 {% block content %}
 <table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
-  &raquo; <a href="{{ url_for('bb.messages') }}">Private Messages</a> &raquo; {{ other|pname }}</td></tr></table>
+  &raquo; <a href="{{ url_for('bb.messages') }}">Private Messages</a> &raquo; {{ other|pname }}</td>
+  {% if conversation_id %}<td class="right nowrap">
+    <details class="inline-details"><summary class="btn">Leave conversation</summary>
+      <form method="post" action="{{ url_for('bb.leave_conversation', conversation_id=conversation_id) }}">{{ m.csrf() }}
+        <span class="gensmall">You won't see this conversation again, not even new messages {{ other|pname }} sends in it. This can't be undone.</span><br>
+        <label class="gensmall"><input type="checkbox" name="confirm" value="1"> I understand</label> <button class="btn">Leave</button></form></details>
+    <details class="inline-details"><summary class="btn">Report conversation</summary>
+      <form method="post" action="{{ url_for('bb.report_pm', kind='conversation', obj_id=conversation_id) }}">{{ m.csrf() }}
+        {{ reason_select() }} <button class="btn">Send report</button></form></details></td>{% endif %}
+</tr></table>
 <form method="post">{{ m.csrf() }}
 <table class="forumline">
   <tr><th>Send a private message to {{ other|pref }}</th></tr>
@@ -19,7 +29,16 @@
   <tr class="post">
     <td class="{{ loop.cycle('row1', 'row2') }} postbit" valign="top"><span class="name">{{ msg.creator|pname }}</span>
       <span class="pmdate gensmall">{{ msg.published|bbdate }}</span></td>
-    <td class="{{ loop.cycle('row1', 'row2') }} postbody" valign="top">{% if msg.deleted %}<i class="muted">[deleted]</i>{% else %}{{ msg.content|md }}{% endif %}</td>
+    <td class="{{ loop.cycle('row1', 'row2') }} postbody" valign="top">{% if msg.deleted %}<i class="muted">[deleted]</i>{% else %}{{ msg.content|md }}{% endif %}
+      {% if not msg.deleted %}<div class="gensmall right pmactions">
+      {% if me and msg.creator.id == me.id %}
+        <form class="inline" method="post" action="{{ url_for('bb.delete_pm', pm_id=msg.id) }}" onsubmit="return confirm('Delete this message?')">{{ m.csrf() }}
+          <button class="btnlink">Delete</button></form>
+      {% else %}
+        <details class="inline-details"><summary class="btnlink">Report</summary>
+          <form method="post" action="{{ url_for('bb.report_pm', kind='message', obj_id=msg.id) }}">{{ m.csrf() }}
+            {{ reason_select() }} <button class="btn">Send report</button></form></details>
+      {% endif %}</div>{% endif %}</td>
   </tr>
   {% else %}
   <tr><td class="row1 center gen" colspan="2">No messages with {{ other|pname }} yet.</td></tr>

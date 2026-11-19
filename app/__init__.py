@@ -87,7 +87,8 @@ def create_app():
     app.jinja_env.tests["image"] = render.is_image
 
     from .views import bp
-    importlib.import_module(".actions", __name__)  # adds its routes to bp before registration
+    for mod in (".actions", ".feeds", ".more"):  # add their routes to bp before registration
+        importlib.import_module(mod, __name__)
     from .admin import admin_bp
     app.register_blueprint(bp)
     app.register_blueprint(admin_bp)

@@ -7,8 +7,25 @@
   <td class="right gensmall tabs">
     <a class="{{ 'on' if show == 'Unread' }}" href="{{ url_for('bb.notifications') }}">Unread ({{ data.unread }})</a>
     <a class="{{ 'on' if show == 'All' }}" href="{{ url_for('bb.notifications', show='all') }}">All</a>
+    <a class="{{ 'on' if show == 'Mentions' }}" href="{{ url_for('bb.notifications', show='mentions') }}">Mentions</a>
+    <a class="{{ 'on' if show == 'Replies' }}" href="{{ url_for('bb.notifications', show='replies') }}">Replies</a>
   </td>
 </tr></table>
+{% if inbox is not none %}
+<table class="forumline">
+  <tr><th>From</th><th width="100%">{{ 'Posts that mention you' if show == 'Mentions' else 'Replies in topics and posts you follow' }}</th><th>When</th></tr>
+  {% for c in inbox %}
+  <tr>
+    <td class="row1 gensmall nowrap" valign="top"><a href="{{ url_for('bb.profile', username=c.creator|pref) }}">{{ c.creator|pname }}</a></td>
+    <td class="row1 gen"><a href="{{ url_for('bb.comment_link', comment_id=c.comment.id) }}">{% if c.unread %}<b>{{ c.comment.body|plain|truncate(200) }}</b>{% else %}{{ c.comment.body|plain|truncate(200) }}{% endif %}</a>
+      <br><span class="gensmall">in <a href="{{ url_for('bb.thread', post_id=c.post.id) }}">{{ c.post.title }}</a>{% if c.community.title %} &middot; {{ c.community.title }}{% endif %}</span></td>
+    <td class="row2 center nowrap gensmall">{{ c.comment.published|bbdate }}</td>
+  </tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">{{ 'Nobody has mentioned you yet.' if show == 'Mentions' else 'No replies yet. Follow a topic, or use "Alert replies" on a post, to get them here.' }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
 <table class="forumline">
   <tr><th>From</th><th width="100%">Notification</th><th></th></tr>
   {% for n in data['items'] %}
@@ -41,5 +58,6 @@
       <input type="hidden" name="all" value="1"><input type="submit" value="Mark all as read"></form></td></tr>
   {% endif %}
 </table>
+{% endif %}
 <table width="100%"><tr><td class="right">{{ m.pagination(page, has_next) }}</td></tr></table>
 {% endblock %}

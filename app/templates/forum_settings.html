@@ -38,7 +38,7 @@
         <button class="btnlink">Remove</button></form></td></tr>
   {% endfor %}
   <tr><td class="catBottom" colspan="2"><form class="inline" method="post">{{ m.csrf() }}<input type="hidden" name="action" value="mod_add">
-    <input type="text" name="username" placeholder="username or name@instance" required style="width:220px;max-width:60%"> <input type="submit" value="Add moderator"></form></td></tr>
+    <input type="text" name="username" placeholder="username or name@instance" data-suggest="@" autocomplete="off" required style="width:220px;max-width:60%"> <input type="submit" value="Add moderator"></form></td></tr>
 </table>
 <br>
 
@@ -76,4 +76,14 @@
   {% endfor %}
 </table>
 <p class="gensmall">To ban someone, use "Moderate → Ban user" under one of their posts.</p>
+{% if c.local %}
+<br>
+<form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="delete_forum">
+<table class="forumline">
+  <tr><th>Delete forum</th></tr>
+  <tr><td class="row1 gen center">Deletes {{ c.title }} with all its topics for everyone.
+    <label><input type="checkbox" name="confirm" value="1"> Yes, delete this forum</label> &nbsp; <button class="btn">Delete forum</button></td></tr>
+</table>
+</form>
+{% endif %}
 {% endblock %}

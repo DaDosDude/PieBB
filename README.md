@@ -2,7 +2,8 @@
 
 A classic bulletin-board frontend for [PieFed](https://codeberg.org/rimu/pyfedi), styled like phpBB2's subSilver.
 It talks to PieFed's API only, so it runs alongside your instance without touching its database.
-Requires PieFed 1.8.11 or newer. Private instances work too: guests are sent to the login page.
+Requires PieFed 1.8.11 or newer; blocklists need PieFed 1.9 (on older versions they simply don't show).
+Private instances work too: guests are sent to the login page.
 
 PieFed topics and feeds become forum categories, communities become forums, posts become topics,
 and comments become replies. Replies are shown flat and in order, each quoting the post it answers.
@@ -15,12 +16,21 @@ and comments become replies. Replies are shown flat and in order, each quoting t
 - **Threads:** flat replies with quotes, polls, events, galleries and spoilers. Bare image links display as images.
 - **Posting:** new topics (with an optional poll or event, flair and language), crossposting, replies, quick reply,
   edit and delete (polls and events too), preview, a formatting toolbar and image upload.
+  Scheduled topics (post later, once or repeating), "Get title" for links, accepted answers in Q&A forums,
+  and name suggestions for forums and users.
 - **Members:** profile and settings (name, avatar, bio, preferences), your forums, votes, subscriptions, following topics,
   alerts for new topics in a forum, category or feed,
-  saved posts, blocking, reports, notifications, private messages, unread topics and mark-as-read.
+  saved posts, blocking (users, forums, sites, link domains), blocklists, hiding topics, reports, notifications
+  with separate Mentions and Replies tabs, alerts for replies to one post or for a user's new posts, private notes
+  on users, private messages (delete, report, leave), unread topics and mark-as-read. Threads say how many
+  replies your blocks hide.
+- **Feeds:** browse, follow and make your own feeds; open feeds from other sites by `~name@site` or link.
+  Any fediverse link (topic, reply, forum, user) pasted in the search box opens here.
 - **Search:** topics, replies, forums and users, with sorting; search inside a single forum from its page.
-- **Moderator CP:** lock, sticky, remove, ban, reports and the mod log, for PieFed community moderators.
-  Forum settings for local forums: name, icon, description, options, moderators, flair and banned users.
+- **Moderator CP:** lock, sticky, remove, ban, NSFW, lock replies to one post, moderator statements, who voted,
+  reports and the mod log, for PieFed community moderators.
+  Forum settings for local forums: name, icon, description, options, moderators, flair, banned users and deleting.
+  Site admins also get message reports and site-wide bans.
 - **phpBB2 themes:** upload a phpBB2 style zip (e.g. from a phpBB2 styles archive) in the admin panel.
   PieBB reads its `theme_info.cfg` colours, stylesheet and images (folder icons, buttons). Built-in themes:
   subSilver and a dark Charcoal theme. Visitors can pick any installed theme from the footer (admins can turn this off).

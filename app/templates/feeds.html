@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Feeds :: {% endblock %}
+{% macro feed_rows(list, empty, edit=False) %}
+  {% for f in list %}
+  <tr><td class="row1 gen" width="100%"><a class="forumlink" href="{{ url_for('bb.feed', feed_id=f.id) }}">{{ f.title or f.name }}</a>
+        <span class="gensmall muted">~{{ f.name }}{% if not f.local and f.ap_domain %}@{{ f.ap_domain }}{% endif %}</span>
+        {% if not f.public %}<span class="gensmall muted">(private)</span>{% endif %}
+        {% if f.description %}<br><span class="gensmall">{{ f.description|truncate(200) }}</span>{% endif %}</td>
+      <td class="row2 center gensmall nowrap">{{ f.communities_count or 0 }} forums<br>{{ f.subscriptions_count or 0 }} followers</td>
+      <td class="row2 center nowrap">{% if edit or f.owner %}{{ m.button('feed_edit', 'Edit', url_for('bb.edit_feed', feed_id=f.id), False) }}{% elif logged_in %}{{ follow_feed_btn(f.id, f.subscribed) }}{% endif %}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="3">{{ empty }}</td></tr>
+  {% endfor %}
+{% endmacro %}
+{% macro follow_feed_btn(fid, subscribed) %}<form class="inline" method="post" action="{{ url_for('bb.follow_feed', feed_id=fid) }}">{{ m.csrf() }}
+  <input type="hidden" name="follow" value="{{ '0' if subscribed else '1' }}"><button class="btn">{{ 'Unfollow' if subscribed else 'Follow' }}</button></form>{% endmacro %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a> &raquo; Feeds</td>
+  <td class="right">{% if logged_in %}{{ m.button('feed_new', 'New feed', url_for('bb.new_feed')) }}{% endif %}</td></tr></table>
+
+<form method="get" action="{{ url_for('bb.search') }}">
+<table class="forumline formtable">
+  <tr><th>Add a feed from another site</th></tr>
+  <tr><td class="row1 gen"><input type="search" name="q" placeholder="~feedname@site.example, or a link to the feed" aria-label="Feed address" data-suggest="~" autocomplete="off" style="width:60%">
+    <input type="submit" value="Open">
+    <br><span class="gensmall">{% if logged_in %}PieFed fetches the feed if this site doesn't know it yet; follow it to get its posts here.{% else %}Log in to fetch feeds this site doesn't know yet.{% endif %}</span></td></tr>
+</table>
+</form>
+<br>
+{% if logged_in %}
+<table class="forumline">
+  <tr><th colspan="3">Your feeds</th></tr>
+  {{ feed_rows(mine, "You haven't made any feeds. A feed bundles forums from any site into one list of topics.", True) }}
+</table>
+<br>
+<table class="forumline">
+  <tr><th colspan="3">Feeds you follow</th></tr>
+  {{ feed_rows(followed, "You don't follow any feeds.") }}
+</table>
+<br>
+{% endif %}
+<table class="forumline">
+  <tr><th colspan="3">All public feeds</th></tr>
+  {{ feed_rows(public, "There are no public feeds yet.") }}
+</table>
+{% endblock %}

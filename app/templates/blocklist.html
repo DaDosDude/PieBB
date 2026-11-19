@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ b.title }} :: Blocklists :: {% endblock %}
+{% block content %}
+<table width="100%"><tr><td class="nav"><a href="{{ url_for('bb.index') }}">{{ forum_title }} Forum Index</a>
+  &raquo; <a href="{{ url_for('bb.blocklists') }}">Blocklists</a> &raquo; {{ b.title }}</td>
+  <td class="right nowrap">
+    {% if b.owner %}{{ m.button('bl_edit', 'Edit blocklist', url_for('bb.edit_blocklist', blocklist_id=b.id), False) }}
+    {% elif logged_in %}<form class="inline" method="post" action="{{ url_for('bb.follow_blocklist', blocklist_id=b.id) }}">{{ m.csrf() }}
+      <input type="hidden" name="follow" value="{{ '0' if b.subscribed else '1' }}">
+      <button class="btn" title="{{ 'Stop following; accounts blocked through it are unblocked' if b.subscribed else 'Block everyone on this list, now and as it changes' }}">{{ 'Unfollow blocklist' if b.subscribed else 'Follow blocklist' }}</button></form>{% endif %}</td></tr></table>
+<table class="forumline">
+  <tr><th colspan="2">{{ b.title }} <span class="gensmall">%{{ b.name }}@{{ b.ap_domain }}</span></th></tr>
+  {% if b.description %}<tr><td class="row1 postbody" colspan="2">{{ b.description|md }}</td></tr>{% endif %}
+  <tr><td class="row2 gensmall" colspan="2">{{ b.count }} accounts &middot; {{ b.followers }} followers{% if b.subscribed %} &middot; <b>you follow it</b>{% endif %}</td></tr>
+  {% for p in b.blocked %}
+  <tr><td class="row1 gen" width="100%"><a href="{{ url_for('bb.profile', username=p|pref) }}">{{ p|pname }}</a> <span class="gensmall muted">{{ p|pref }}</span></td>
+      <td class="row1 gensmall nowrap">{% if not p.local %}{{ p.actor_id|domain }}{% endif %}</td></tr>
+  {% else %}
+  <tr><td class="row1 center gen" colspan="2">This blocklist is empty.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

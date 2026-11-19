@@ -32,5 +32,20 @@
   <tr><td class="row1 center gen" colspan="2">You haven't blocked any sites.</td></tr>
   {% endfor %}
 </table>
+<br>
+<table class="forumline" id="domains">
+  <tr><th colspan="2">Blocked link domains</th></tr>
+  <tr><td class="row1 gensmall" colspan="2">Link topics pointing to a blocked domain are hidden from you. PieFed doesn't share the list of domains you block, so only those blocked from this browser are listed here; any domain can be unblocked by name.</td></tr>
+  {% for d in domains %}
+  <tr><td class="row1 gen" width="100%">{{ d }}</td>
+      <td class="row2 center nowrap"><form class="inline" method="post" action="{{ url_for('bb.block_domain') }}">{{ m.csrf() }}
+        <input type="hidden" name="domain" value="{{ d }}"><input type="hidden" name="block" value="0"><button class="btn">Unblock</button></form></td></tr>
+  {% endfor %}
+  <tr><td class="catBottom" colspan="2"><form class="inline" method="post" action="{{ url_for('bb.block_domain') }}">{{ m.csrf() }}
+    <input type="text" name="domain" placeholder="example.com" maxlength="253" aria-label="Domain" style="width:220px;max-width:60%">
+    <select name="block" aria-label="Block or unblock"><option value="1">Block</option><option value="0">Unblock</option></select>
+    <input type="submit" value="Go"></form></td></tr>
+</table>
+{% if piefed_has('blocklists') %}<p class="gen"><a href="{{ url_for('bb.blocklists') }}"><b>Blocklists</b></a>: follow a shared list of accounts to block them all at once.</p>{% endif %}
 <p class="gensmall">Blocking happens on {{ site.name or 'PieFed' }} itself, so it also applies in other apps you use with this account.</p>
 {% endblock %}
